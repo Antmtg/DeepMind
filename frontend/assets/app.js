@@ -1921,7 +1921,7 @@ function renderPatientDetail(data) {
     ${careCallout(data)}
     <h3>Últimos signos vitales</h3>
     ${miniVitals(data.latest)}
-    <p class="reference-note">Referencia: oxígeno 95–100% · pulso 60–100 lpm · temperatura corporal 36.0–37.5 °C.</p>
+    <p class="reference-note">Referencia: oxígeno 95–100% · pulso 60–100 lpm.</p>
     <h3>Sensores asignados</h3>
     ${deviceTable}
     <h3>Historial y tendencia</h3>
