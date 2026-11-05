@@ -1,0 +1,33 @@
+# Dependencias
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+
+# Secretos de dispositivos y credenciales de demostración
+device/esp32/config.py
+device/esp32/device_config.json
+data/demo_credentials.json
+
+# Base de datos
+*.db
+*.sqlite3
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build / dist
+dist/
+build/
+*.log
+
+# Pruebas cache
+.pytest_cache/
