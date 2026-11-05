@@ -1405,8 +1405,267 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
           </ul>
         </article>
       </div>
+    </section>
+
+    <section class="dash-section" id="records" data-dash-section>
+      ${sectionHead("RÉCORDS PERSONALES", "Tu progreso en apnea y deportes", "Máxima retención, mejor oxigenación y frecuencia en reposo, comparado con tu historial.")}
+      ${(function () {
+        const pbs = computePBs(readings, devices);
+        const maxHR = estimateMaxHR();
+        const hrZoneInfo = pbs.avgRestingPulse ? hrZone(maxHR, pbs.avgRestingPulse) : null;
+        return `
+        <div class="pb-grid">
+          <article class="pb-card pb-breath">
+            <p class="pb-eyebrow">Apnea estática</p>
+            <p class="pb-value">${pbs.maxBreathHold}<small>s</small></p>
+            <p class="pb-delta is-up">Tu récord personal</p>
+            <p class="pb-note">Tiempo máximo de retención de aire.</p>
+          </article>
+          <article class="pb-card pb-oxygen">
+            <p class="pb-eyebrow">Mejor SpO₂</p>
+            <p class="pb-value">${pbs.bestSpO2 ?? "—"}<small>%</small></p>
+            <p class="pb-delta ${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "is-up" : "is-down"}${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "En rango óptimo" : "Por debajo de lo óptimo"}</p>
+            <p class="pb-note">Mejor oxigenación registrada.</p>
+          </article>
+          <article class="pb-card pb-heart">
+            <p class="pb-eyebrow">Pulso en reposo</p>
+            <p class="pb-value">${pbs.avgRestingPulse ?? "—"}<small>lpm</small></p>
+            <p class="pb-delta is-up">${hrZoneInfo ? `Zona ${hrZoneInfo.z} · ${hrZoneInfo.name}` : "—"}</p>
+            <p class="pb-note">Frecuencia cardíaca basal estimada.</p>
+          </article>
+          <article class="pb-card pb-sessions">
+            <p class="pb-eyebrow">Sesiones</p>
+            <p class="pb-value">${pbs.sessions}<small></small></p>
+            <p class="pb-delta is-up">Días con lecturas</p>
+            <p class="pb-note">Últimos 30 días de historial.</p>
+          </article>
+        </div>
+        `;
+      })()}
+    </section>
+
+    <section class="dash-section" id="calendario" data-dash-section>
+      ${sectionHead("CALENDARIO DE ACTIVIDAD", "Últimos 30 días", "Días con al menos una lectura. Más oscuro = más actividad (estilo Strava).")}
+      <div class="activity-calendar">
+        <div class="ac-header">
+          <span class="ac-title">Actividad reciente</span>
+          <div class="ac-legend">
+            <span class="ac-legend-dot is-4"></span><span>Mucho</span>
+            <span class="ac-legend-dot is-1"></span><span>Poco</span>
+          </div>
+        </div>
+        <div class="ac-weekday">
+          <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span><span>Do</span>
+        </div>
+        <div class="ac-grid">
+          ${activityCalendarDays(readings).map((day) => `<div class="ac-cell is-${day.level}" title="${day.key}: ${day.count} lectura${day.count !== 1 ? "s" : ""}"></div>`).join("")}
+        </div>
+      </div>
+    </section>
+
+    <section class="dash-section" id="tablas-entrenamiento" data-dash-section>
+      ${sectionHead("TABLAS DE ENTRENAMIENTO", "CO₂ y O₂ personalizadas", "Generadas a partir de tu retención máxima. Estilo Fathom / Apnea Assistant.")}
+      <div class="training-tables">
+        <article class="training-table-card tt-co2">
+          <p class="tt-eyebrow">Tolerancia al CO₂</p>
+          <h3>Tabla CO₂</h3>
+          <p>Retenciones fijas con descansos cada vez más cortos. Entrena tu tolerancia al deseo de respirar.</p>
+          <div class="tt-stats">
+            <div class="tt-stat"><div class="tt-stat-value">${co2Table(90).hold}s</div><div class="tt-stat-label">Retención</div></div>
+            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
+          </div>
+          <div class="tt-actions">
+            <button type="button" class="tt-btn" style="background: var(--dash-red); color: var(--white);">Iniciar tabla CO₂</button>
+          </div>
+        </article>
+        <article class="training-table-card tt-o2">
+          <p class="tt-eyebrow">Resistencia al O₂</p>
+          <h3>Tabla O₂</h3>
+          <p>Retenciones progresivas con descanso fijo. Entrena tu cuerpo a trabajar con menos oxígeno.</p>
+          <div class="tt-stats">
+            <div class="tt-stat"><div class="tt-stat-value">~75%</div><div class="tt-stat-label">De tu máximo</div></div>
+            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
+          </div>
+          <div class="tt-actions">
+            <button type="button" class="tt-btn" style="background: var(--dash-cyan); color: var(--black);">Iniciar tabla O₂</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="dash-section" id="respiracion" data-dash-section>
+      ${sectionHead("RESPIRACIÓN GUIADA", "Box breathing · 4-7-8 · Diafragmática", "Ejercicios de respiración para pre-inmersión y recuperación de superficie.")}
+      <div class="breathing-guide">
+        <div class="breathing-circle">
+          <div class="breathing-ring"></div>
+        </div>
+        <div class="breathing-text">Inhalar <span>4s</span></div>
+        <div class="breathing-phase" id="breath-phase">Preparado</div>
+        <div class="breathing-actions">
+          <button type="button" class="tt-btn" style="background: var(--dash-cyan); color: var(--black);" id="breath-start">Iniciar</button>
+          <button type="button" class="tt-btn" id="breath-pause">Pausar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="dash-section" id="zonas-fc" data-dash-section>
+      ${sectionHead("ZONAS DE FRECUENCIA CARDÍACA", "Entrena por intensidad", "Cinco zonas basadas en tu FC máxima estimada (220 − edad). Estilo MySwimPro / SwimTune.")}
+      <div class="hr-zones">
+        ${[1, 2, 3, 4, 5].map((z) => {
+          const maxHR = estimateMaxHR();
+          const lo = Math.round(maxHR * (z === 1 ? 0 : [0, 0.6, 0.7, 0.8, 0.9][z - 1]));
+          const hi = Math.round(maxHR * [0.6, 0.7, 0.8, 0.9, 1][z - 1]);
+          const time = z === 3 ? "42%" : z === 2 ? "28%" : z === 4 ? "18%" : z === 5 ? "8%" : "26%";
+          const colors = ["#0f766e", "#d97706", "#00b4d8", "#b91c1c", "#78288c"];
+          return `<article class="hr-zone is-z${z}">
+            <span class="hz-dot" style="background: ${colors[z - 1]};"></span>
+            <div class="hz-name">Zona ${z}</div>
+            <div class="hz-range">${lo}–${hi} lpm</div>
+            <div class="hz-time">${time}</div>
+          </article>`;
+        }).join("")}
+      </div>
+    </section>
+
+    <section class="dash-section" id="carga-entrenamiento" data-dash-section>
+      ${sectionHead("CARGA DE ENTRENAMIENTO", "Aguda (7d) vs Crónica (28d)", "Equilibrio entre carga reciente y carga acumulada. Estilo Swim Dashboard.")}
+      ${(function () {
+        const tl = trainingLoad(readings);
+        const ratio = tl.chronic ? Math.round((tl.acute / tl.chronic) * 100) : 0;
+        return `
+        <div class="training-load">
+          <article class="tl-card is-acute">
+            <p class="tl-eyebrow">Carga aguda</p>
+            <div class="tl-value">${tl.acute}</div>
+            <div class="tl-label">Lecturas últimos 7 días</div>
+          </article>
+          <article class="tl-card is-chronic">
+            <p class="tl-eyebrow">Carga crónica</p>
+            <div class="tl-value">${tl.chronic}</div>
+            <div class="tl-label">Lecturas últimos 28 días</div>
+          </article>
+          <article class="tl-card" style="border-left-color: var(--dash-amber);">
+            <p class="tl-eyebrow">Racha actual</p>
+            <div class="tl-value">${computeStreak(activityCalendarDays(readings))}<small>días</small></div>
+            <div class="tl-label">Días seguidos entrenando</div>
+          </article>
+        </div>
+        <p class="reference-note">${ratio > 150 ? "Carga aguda elevada respecto a la crónica. Considera un día de recuperación." : ratio < 80 && tl.chronic > 0 ? "Puedes aumentar gradualmente la carga de entrenamiento." : "Carga equilibrada. Mantén la consistencia."}</p>
+        `;
+      })()}
     </section>`;
   updateApneaSemaphore(primaryVitals?.spo2 ?? null);
+}
+
+// ============================================================================
+// MEJORAS COMPETENCIA: APNEA / DEPORTES
+// Récords personales, calendario de actividad, tablas CO₂/O₂, respiración guiada,
+// zonas de FC, carga de entrenamiento y racha. Datos derivados de lecturas.
+// ============================================================================
+
+function estimateMaxHR(age = 35) {
+  return Math.max(30, 220 - age);
+}
+
+function hrZone(maxHR, bpm) {
+  const pct = bpm / maxHR;
+  if (pct < 0.60) return { z: 1, name: "Recuperación", color: "#0f766e" };
+  if (pct < 0.70) return { z: 2, name: "Resistencia", color: "#d97706" };
+  if (pct < 0.80) return { z: 3, name: "Aeróbica", color: "#00b4d8" };
+  if (pct < 0.90) return { z: 4, name: "Umbral", color: "#b91c1c" };
+  return { z: 5, name: "VO2máx", color: "#78288c" };
+}
+
+function computePBs(readings, devices) {
+  const spo2Values = readings
+    .map((r) => Number(r.spo2))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const pulseValues = readings
+    .map((r) => Number(r.heart_rate_bpm))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  const bestSpO2 = spo2Values.length ? Math.max(...spo2Values) : null;
+  const worstSpO2 = spo2Values.length ? Math.min(...spo2Values) : null;
+  const avgRestingPulse = pulseValues.length
+    ? Math.round(pulseValues.filter((v) => v < 90).reduce((a, b) => a + b, 0) / pulseValues.filter((v) => v < 90).length)
+    : null;
+  const maxBreathHold = 90; // simulado: segundos (en futuro vendría del sensor/apnea timer)
+  const sessions = unique(readings.map((r) => r.measured_at?.slice(0, 10))).length;
+  return { bestSpO2, worstSpO2, avgRestingPulse, maxBreathHold, sessions };
+}
+
+function activityCalendarDays(readings) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    days.push(d);
+  }
+  const counts = {};
+  readings.forEach((r) => {
+    if (!r.measured_at) return;
+    const ds = r.measured_at.slice(0, 10);
+    counts[ds] = (counts[ds] || 0) + 1;
+  });
+  return days.map((d) => {
+    const key = d.toISOString().slice(0, 10);
+    const c = counts[key] || 0;
+    let level = 0;
+    if (c >= 5) level = 4;
+    else if (c >= 3) level = 3;
+    else if (c === 2) level = 2;
+    else if (c === 1) level = 1;
+    return { date: d, key, count: c, level };
+  });
+}
+
+function computeStreak(calendarDays) {
+  let streak = 0;
+  for (let i = calendarDays.length - 1; i >= 0; i--) {
+    if (calendarDays[i].count > 0) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function trainingLoad(readings) {
+  const now = Date.now();
+  const acuteMs = 7 * 24 * 60 * 60 * 1000;
+  const chronicMs = 28 * 24 * 60 * 60 * 1000;
+  const acute = readings.filter((r) => now - dateValue(r.measured_at) <= acuteMs).length;
+  const chronic = readings.filter((r) => now - dateValue(r.measured_at) <= chronicMs).length;
+  return { acute, chronic };
+}
+
+function co2Table(maxHoldSeconds) {
+  const rounds = 8;
+  const hold = Math.max(10, Math.round(maxHoldSeconds * 0.5));
+  const rows = [];
+  let rest = 90;
+  for (let i = 0; i < rounds; i++) {
+    rows.push({ round: i + 1, hold, rest });
+    rest = Math.max(30, rest - 10);
+  }
+  return { hold, rest, rows };
+}
+
+function o2Table(maxHoldSeconds) {
+  const rounds = 8;
+  const base = Math.max(10, Math.round(maxHoldSeconds * 0.75));
+  const rows = [];
+  const rest = 120;
+  for (let i = 0; i < rounds; i++) {
+    rows.push({ round: i + 1, hold: base + i * 5, rest });
+  }
+  return { base, rest, rows };
+}
+
+function breathingCycles(type = "box") {
+  if (type === "box") return [{ name: "Inhalar", s: 4 }, { name: "Mantener", s: 4 }, { name: "Exhalar", s: 4 }, { name: "Mantener", s: 4 }];
+  if (type === "4-7-8") return [{ name: "Inhalar", s: 4 }, { name: "Mantener", s: 7 }, { name: "Exhalar", s: 8 }];
+  if (type === "diafragmatica") return [{ name: "Inhalar", s: 5 }, { name: "Exhalar", s: 6 }];
+  return [{ name: "Inhalar", s: 4 }, { name: "Exhalar", s: 4 }];
 }
 
 async function loadCareDashboard(role) {
@@ -3136,4 +3395,67 @@ document.addEventListener("click", (event) => {
   if (target.id === "apnea-start") startApneaTimer();
   if (target.id === "apnea-pause") pauseApneaTimer();
   if (target.id === "apnea-reset") resetApneaTimer();
+});
+
+// ============================================================================
+// RESPIRACIÓN GUIADA (box breathing / 4-7-8 / diafragmática)
+// ============================================================================
+let breathInterval = null;
+let breathRunning = false;
+let breathStepIndex = 0;
+let breathStepStart = 0;
+const BREATH_TYPE = "box"; // se puede cambiar a "4-7-8" o "diafragmatica"
+
+function breathSteps() {
+  return breathingCycles(BREATH_TYPE);
+}
+
+function breathUpdateUI() {
+  const steps = breathSteps();
+  const step = steps[breathStepIndex];
+  if (!step) return;
+  const text = document.querySelector(".breathing-text");
+  const phase = document.querySelector("#breath-phase");
+  const ring = document.querySelector(".breathing-ring");
+  const inhale = step.name.toLowerCase().includes("inalar");
+  const exhale = step.name.toLowerCase().includes("exhalar");
+  if (text) text.innerHTML = step.name + ` <span>${step.s}s</span>`;
+  if (phase) phase.textContent = step.name;
+  if (ring) {
+    ring.style.animationDuration = step.s + "s";
+    ring.style.animationName = inhale ? "breath-expand" : exhale ? "breath-contract" : "breath-hold";
+  }
+}
+
+function breathStart() {
+  if (breathRunning) return;
+  breathRunning = true;
+  breathStepIndex = 0;
+  breathStepStart = Date.now();
+  breathUpdateUI();
+  breathInterval = setInterval(() => {
+    const steps = breathSteps();
+    const step = steps[breathStepIndex];
+    if (!step) return;
+    const elapsed = Date.now() - breathStepStart;
+    if (elapsed >= step.s * 1000) {
+      breathStepIndex = (breathStepIndex + 1) % steps.length;
+      breathStepStart = Date.now();
+      breathUpdateUI();
+    }
+  }, 200);
+}
+
+function breathPause() {
+  if (!breathRunning) return;
+  breathRunning = false;
+  if (breathInterval) clearInterval(breathInterval);
+  breathInterval = null;
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.id === "breath-start") breathStart();
+  if (target.id === "breath-pause") breathPause();
 });

@@ -1463,6 +1463,90 @@ body[data-dash-motion="reduced"] .dashboard *::after {
 }
 
 /* ==========================================================================
+   QUIZ DE ELEGIBILIDAD — ¿ES PARA TI?
+   ========================================================================== */
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 26px;
+}
+.quiz-card {
+  padding: 22px; border-radius: 20px; background: var(--surface);
+  border: 1px solid var(--border); text-align: center;
+  cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.quiz-card:hover {
+  border-color: var(--cyan); box-shadow: 0 0 24px rgba(0,180,216,0.12); transform: translateY(-2px);
+}
+.quiz-card.is-selected {
+  border-color: var(--cyan); background: var(--surface-3);
+  box-shadow: 0 0 24px rgba(0,180,216,0.18);
+}
+.quiz-card .quiz-icon {
+  width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 14px;
+  display: grid; place-content: center; background: var(--cyan-soft); color: var(--cyan);
+}
+.quiz-card .quiz-icon svg { width: 26px; height: 26px; }
+.quiz-card h3 { margin: 0 0 8px; font: 800 17px "Space Grotesk"; color: var(--white); }
+.quiz-card p { margin: 0; color: var(--ink-dim); font-size: 13px; line-height: 1.55; }
+.quiz-result {
+  max-width: 700px; margin: 0 auto 30px; padding: 26px; border-radius: 20px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  text-align: center; display: none;
+}
+.quiz-result.is-visible { display: block; animation: fade-up .4s ease; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.quiz-result h3 { margin: 0 0 10px; font: 800 20px "Space Grotesk"; color: var(--white); }
+.quiz-result p { color: var(--ink-dim); font-size: 14px; line-height: 1.6; margin: 0 0 16px; }
+.quiz-result .rol-sugerido {
+  display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px;
+  border-radius: 999px; background: var(--cyan-soft); color: var(--cyan);
+  font: 800 14px "Space Grotesk"; border: 1px solid rgba(0,180,216,0.35);
+}
+
+/* ==========================================================================
+   QUÉ NECESITAS — HARDWARE
+   ========================================================================== */
+.hardware-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+}
+.hardware-card {
+  padding: 20px; border-radius: 18px; background: var(--surface);
+  border: 1px solid var(--border); text-align: center;
+}
+.hardware-card .hw-icon {
+  width: 48px; height: 48px; border-radius: 12px; margin: 0 auto 12px;
+  display: grid; place-content: center; background: var(--cyan-soft); color: var(--cyan);
+}
+.hardware-card .hw-icon svg { width: 22px; height: 22px; }
+.hardware-card h3 { margin: 0 0 8px; font: 800 16px "Space Grotesk"; color: var(--white); }
+.hardware-card p { margin: 0; color: var(--ink-dim); font-size: 12.5px; line-height: 1.55; }
+.hardware-note {
+  max-width: 700px; margin: 18px auto 0; color: var(--ink-dim);
+  font-size: 12.5px; line-height: 1.65; text-align: center;
+}
+
+/* ==========================================================================
+   METRICAS DE CONFIANZA — PROYECTO REAL
+   ========================================================================== */
+.trust-metrics {
+  max-width: 1200px; margin: 0 auto; padding: 0 38px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+}
+.trust-metric {
+  padding: 20px 24px; border-radius: 18px; background: var(--surface-2);
+  border: 1px solid var(--border); text-align: center;
+}
+.trust-metric .tm-number {
+  font: 800 28px "Space Grotesk"; color: var(--cyan); letter-spacing: -0.02em;
+}
+.trust-metric .tm-label {
+  margin-top: 6px; color: var(--ink-dim); font-size: 12px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+
+/* ==========================================================================
    PÁGINA DE BIENVENIDA — RESPONSIVE
    ========================================================================== */
 @media (max-width: 1100px) {
@@ -1589,3 +1673,174 @@ body[data-dash-motion="reduced"] .dashboard *::after {
   font-variant-numeric: tabular-nums; color: var(--cyan);
 }
 .apnea-timer-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* ==========================================================================
+   MEJORAS COMPETENCIA: APNEA / DEPORTES (Strava, SwimTune, Fathom, DatApnea)
+   Récords personales, calendario de actividad, tablas CO₂/O₂, respiración guiada,
+   zonas de frecuencia cardíaca, carga de entrenamiento, rachas.
+   ========================================================================== */
+
+/* Tarjetas de récords personales (Personal Bests) */
+.pb-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 24px; }
+.pb-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 22px; border-radius: 20px;
+  background: var(--dash-surface); border: 1px solid var(--dash-line);
+  box-shadow: var(--shadow-soft);
+}
+.pb-card .pb-eyebrow { margin: 0; color: var(--ink-dim); font-size: 0.72em; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; }
+.pb-card .pb-value { font: 900 2.6em/1 "Space Grotesk"; letter-spacing: -0.03em; color: var(--white); }
+.pb-card .pb-value small { margin-left: 4px; color: var(--ink-dim); font-size: 0.35em; font-weight: 800; letter-spacing: 0; }
+.pb-card .pb-delta { font-size: 0.78em; font-weight: 800; }
+.pb-card .pb-delta.is-up { color: var(--dash-green); }
+.pb-card .pb-delta.is-down { color: var(--dash-red); }
+.pb-card .pb-note { margin: auto 0 0; color: var(--ink-dim); font-size: 0.74em; }
+.pb-card.pb-breath { border-color: var(--dash-blue); }
+.pb-card.pb-breath .pb-value { color: var(--dash-blue); }
+.pb-card.pb-oxygen { border-color: var(--dash-green); }
+.pb-card.pb-oxygen .pb-value { color: var(--dash-green); }
+.pb-card.pb-heart { border-color: var(--dash-red); }
+.pb-card.pb-heart .pb-value { color: var(--dash-red); }
+.pb-card.pb-sessions { border-color: var(--dash-cyan); }
+.pb-card.pb-sessions .pb-value { color: var(--dash-cyan); }
+
+/* Calendario de actividad (heatmap estilo Strava) */
+.activity-calendar { margin: 0 0 24px; }
+.activity-calendar .ac-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.activity-calendar .ac-title { font: 800 1.1em "Space Grotesk"; color: var(--white); }
+.activity-calendar .ac-legend { display: flex; align-items: center; gap: 8px; font-size: 0.78em; color: var(--ink-dim); }
+.ac-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+.ac-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.ac-weekday { grid-column: 1 / -1; display: flex; justify-content: space-between; font-size: 0.72em; color: var(--ink-dim); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.ac-cell { width: 14px; height: 14px; border-radius: 3px; background: rgba(255,255,255,0.05); }
+.ac-cell.is-1 { background: rgba(0,180,216,0.15); }
+.ac-cell.is-2 { background: rgba(0,180,216,0.35); }
+.ac-cell.is-3 { background: rgba(0,180,216,0.60); }
+.ac-cell.is-4 { background: var(--dash-cyan); }
+
+/* Tablas de entrenamiento CO₂ / O₂ */
+.training-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 24px; }
+.training-table-card {
+  padding: 22px; border-radius: 20px; border: 1px solid var(--dash-line);
+  background: var(--dash-surface); box-shadow: var(--shadow-soft);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.training-table-card .tt-eyebrow { margin: 0; font-size: 0.72em; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; }
+.training-table-card .tt-co2 { color: var(--dash-red); border-top: 4px solid var(--dash-red); }
+.training-table-card .tt-o2 { color: var(--dash-cyan); border-top: 4px solid var(--dash-cyan); }
+.training-table-card h3 { margin: 4px 0 8px; font: 800 1.25em "Space Grotesk"; color: var(--white); }
+.training-table-card p { margin: 0; color: var(--ink-dim); font-size: 0.86em; line-height: 1.55; }
+.tt-stats { display: flex; gap: 14px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--dash-line); }
+.tt-stat { flex: 1; }
+.tt-stat .tt-stat-value { font: 800 1.5em/1 "Space Grotesk"; color: var(--white); }
+.tt-stat .tt-stat-label { font-size: 0.72em; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+.tt-actions { margin-top: auto; }
+.tt-btn { width: 100%; min-height: 48px; border: 0; border-radius: 12px; font: 800 0.9em "Space Grotesk"; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
+.tt-btn:primary { background: var(--dash-cyan); color: var(--black); }
+.tt-btn:primary:hover { background: var(--white); box-shadow: var(--glow-strong); transform: translateY(-1px); }
+.tt-btn:quiet { background: transparent; border: 1px solid var(--dash-line); color: var(--white); }
+.tt-btn:quiet:hover { border-color: var(--dash-cyan); color: var(--dash-cyan); }
+
+/* Respiración guiada */
+.breathing-guide {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  padding: 30px; border-radius: 24px; border: 1px solid var(--dash-line);
+  background: var(--dash-surface-2); box-shadow: var(--shadow-soft);
+  text-align: center;
+}
+.breathing-circle {
+  width: 160px; height: 160px; border-radius: 50%;
+  border: 3px solid var(--dash-cyan);
+  display: grid; place-content: center;
+  background: rgba(0,180,216,0.08);
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,180,216,0.15);
+}
+.breathing-circle::after {
+  content: ""; position: absolute; inset: 4px; border-radius: 50%;
+  background: var(--dash-surface-2); z-index: 1;
+}
+.breathing-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid var(--dash-cyan);
+  animation: breath-expand 4s ease-in-out infinite;
+}
+@keyframes breath-expand {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.5); opacity: 0.2; }
+}
+@keyframes breath-contract {
+  0%, 100% { transform: scale(1.5); opacity: 0.2; }
+  50% { transform: scale(1); opacity: 0.6; }
+}
+@keyframes breath-hold {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+}
+.breathing-text { font: 800 1.4em "Space Grotesk"; color: var(--white); }
+.breathing-text span { color: var(--dash-cyan); }
+.breathing-phase { font-size: 0.86em; color: var(--ink-dim); font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
+.breathing-actions { display: flex; gap: 10px; }
+
+/* Zonas de frecuencia cardíaca */
+.hr-zones { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 0 0 24px; }
+.hr-zone {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 10px; border-radius: 14px; border: 1px solid var(--dash-line);
+  background: var(--dash-surface);
+}
+.hr-zone .hz-dot { width: 12px; height: 12px; border-radius: 50%; }
+.hr-zone.is-z1 { background: rgba(15,118,110,0.1); border-color: rgba(15,118,110,0.35); }
+.hr-zone.is-z1 .hz-dot { background: var(--dash-green); }
+.hr-zone.is-z2 { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.35); }
+.hr-zone.is-z2 .hz-dot { background: var(--dash-amber); }
+.hr-zone.is-z3 { background: rgba(0,180,216,0.1); border-color: rgba(0,180,216,0.35); }
+.hr-zone.is-z3 .hz-dot { background: var(--dash-cyan); }
+.hr-zone.is-z4 { background: rgba(185,28,28,0.1); border-color: rgba(185,28,28,0.35); }
+.hr-zone.is-z4 .hz-dot { background: var(--dash-red); }
+.hr-zone.is-z5 { background: rgba(120,40,140,0.15); border-color: rgba(120,40,140,0.35); }
+.hr-zone.is-z5 .hz-dot { background: #78288c; }
+.hr-zone .hz-name { font-size: 0.72em; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; color: var(--white); }
+.hr-zone .hz-range { font-size: 0.68em; color: var(--ink-dim); font-weight: 700; }
+.hr-zone .hz-time { font: 800 1.1em "Space Grotesk"; color: var(--ink-dim); }
+
+/* Carga de entrenamiento (acute/chronic) */
+.training-load {
+  display: flex; gap: 14px; margin: 0 0 24px;
+}
+.tl-card { flex: 1; padding: 18px; border-radius: 18px; border: 1px solid var(--dash-line); background: var(--dash-surface); box-shadow: var(--shadow-soft); }
+.tl-card .tl-eyebrow { margin: 0 0 6px; font-size: 0.72em; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); }
+.tl-card .tl-value { font: 900 2em/1 "Space Grotesk"; color: var(--white); }
+.tl-card .tl-label { margin-top: 6px; color: var(--ink-dim); font-size: 0.78em; }
+.tl-card.is-acute { border-left: 4px solid var(--dash-red); }
+.tl-card.is-acute .tl-value { color: var(--dash-red); }
+.tl-card.is-chronic { border-left: 4px solid var(--dash-cyan); }
+.tl-card.is-chronic .tl-value { color: var(--dash-cyan); }
+
+/* Racha (streak) */
+.streak-card {
+  display: flex; align-items: center; gap: 14px; padding: 18px 22px;
+  border-radius: 18px; border: 1px solid var(--dash-line); background: var(--dash-surface);
+  box-shadow: var(--shadow-soft);
+}
+.streak-badge { width: 48px; height: 48px; border-radius: 14px; display: grid; place-content: center; background: var(--dash-cyan); color: var(--black); font: 800 1.2em "Space Grotesk"; }
+.streak-info { flex: 1; }
+.streak-info .streak-title { font: 800 1em "Space Grotesk"; color: var(--white); }
+.streak-info .streak-sub { font-size: 0.78em; color: var(--ink-dim); }
+.streak-fire { color: var(--dash-amber); font-size: 1.4em; }
+
+/* Responsive para nuevos componentes */
+@media (max-width: 900px) {
+  .pb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training-tables { grid-template-columns: 1fr; }
+  .hr-zones { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .hr-zone { padding: 12px 6px; }
+  .training-load { flex-direction: column; }
+  .activity-calendar .ac-grid { gap: 4px; }
+  .ac-cell { width: 12px; height: 12px; }
+}
+@media (max-width: 640px) {
+  .pb-grid { grid-template-columns: 1fr; }
+  .hr-zones { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .hr-zone .hz-range { display: none; }
+  .breathing-circle { width: 130px; height: 130px; }
+  .breathing-text { font-size: 1.1em; }
+}
