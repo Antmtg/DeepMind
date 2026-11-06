@@ -1,14 +1,17 @@
+import math
 import secrets
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.device_keys import hash_device_key
 from app.core.security import hash_password
+from app.models.apnea_session import ApneaSession
 from app.models.assignment import CareAssignment
 from app.models.device import Device
 from app.models.measurement import Measurement
+from app.models.training_plan import TrainingPlan
 from app.models.user import User, UserRole
 
 
@@ -116,70 +119,103 @@ def seed_demo_devices(db: Session) -> None:
 
 
 def seed_demo_assignments(db: Session) -> None:
-    """Vincula al entrenador demo con el primer deportista demo."""
-    athlete = db.scalar(
+    """Vincula a los entrenadores demo con todos los deportistas demo."""
+    athletes = db.scalars(
         select(User).where(User.role == UserRole.ATHLETE.value).order_by(User.id)
-    )
-    if athlete is None:
+    ).all()
+    if not athletes:
         return
 
     members = db.scalars(
         select(User).where(User.role == UserRole.COACH.value)
     ).all()
-    for member in members:
-        assignment = db.scalar(
-            select(CareAssignment).where(
-                CareAssignment.patient_id == athlete.id,
-                CareAssignment.member_id == member.id,
-            )
-        )
-        if assignment is None:
-            db.add(
-                CareAssignment(
-                    patient_id=athlete.id,
-                    member_id=member.id,
-                    relationship=member.role,
-                    is_active=True,
+    for athlete in athletes:
+        for member in members:
+            assignment = db.scalar(
+                select(CareAssignment).where(
+                    CareAssignment.patient_id == athlete.id,
+                    CareAssignment.member_id == member.id,
                 )
             )
-        else:
-            assignment.relationship = member.role
-            assignment.is_active = True
+            if assignment is None:
+                db.add(
+                    CareAssignment(
+                        patient_id=athlete.id,
+                        member_id=member.id,
+                        relationship=member.role,
+                        is_active=True,
+                    )
+                )
+            else:
+                assignment.relationship = member.role
+                assignment.is_active = True
     db.commit()
 
 
 def seed_demo_measurements(db: Session) -> None:
-    """Crea lecturas de ejemplo una sola vez y actualiza el último contacto."""
+    """Crea 60 días de lecturas de ejemplo por sensor (una sola vez)."""
     devices = db.scalars(
-        select(Device).where(
-            Device.device_id.in_(list(DEMO_MEASUREMENTS.keys()))
-        )
+        select(Device)
+        .where(Device.device_id.in_(list(DEMO_MEASUREMENTS.keys())))
+        .order_by(Device.id)
     ).all()
     if not devices:
         return
 
+    device_ids = [device.id for device in devices]
     existing = db.scalar(
-        select(Measurement.id)
-        .where(Measurement.device_id.in_([device.id for device in devices]))
-        .limit(1)
+        select(func.count(Measurement.id)).where(
+            Measurement.device_id.in_(device_ids)
+        )
     )
     now = datetime.now().astimezone()
 
-    if existing is None:
-        for device in devices:
-            for minutes_ago, spo2, heart_rate, source in DEMO_MEASUREMENTS[
-                device.device_id
-            ]:
+    if existing < 40:
+        for device_index, device in enumerate(devices):
+            # Lecturas de hoy: la más reciente queda a 2 minutos del presente.
+            for minutes_ago in (2, 9, 24, 44, 69):
+                phase = minutes_ago * 0.12 + device_index * 1.3
                 db.add(
                     Measurement(
                         user_id=device.user_id,
                         device_id=device.id,
-                        spo2=spo2,
-                        heart_rate_bpm=heart_rate,
-                        source=source,
+                        spo2=max(92, min(99, 96 + round(2 * math.sin(phase)))),
+                        heart_rate_bpm=68
+                        + round(8 * math.sin(phase * 0.7))
+                        + (4 if minutes_ago < 30 else 0),
+                        source="demo",
                         measured_at=now - timedelta(minutes=minutes_ago),
                     )
                 )
+
+            # Historial de 60 días para que calendario, racha y tendencias
+            # tengan datos reales que mostrar.
+            for days_ago in range(1, 61):
+                if (days_ago + device_index) % 11 == 0:
+                    continue
+                for slot, hour in enumerate((7, 11, 16, 20)):
+                    phase = days_ago * 0.55 + slot * 0.8 + device_index * 1.3
+                    spo2 = max(92, min(99, 96 + round(2.4 * math.sin(phase))))
+                    if days_ago % 17 == 0 and slot == 3:
+                        spo2 = max(90, spo2 - 3)
+                    measured_at = (now - timedelta(days=days_ago)).replace(
+                        hour=hour,
+                        minute=(slot * 13 + device_index * 5) % 60,
+                        second=0,
+                        microsecond=0,
+                    )
+                    db.add(
+                        Measurement(
+                            user_id=device.user_id,
+                            device_id=device.id,
+                            spo2=spo2,
+                            heart_rate_bpm=66
+                            + round(9 * math.sin(phase * 0.7))
+                            + (4 if 12 <= hour <= 18 else 0),
+                            source="demo",
+                            measured_at=measured_at,
+                        )
+                    )
         db.commit()
 
     for device in devices:
@@ -196,5 +232,196 @@ def seed_demo_measurements(db: Session) -> None:
             update(Measurement)
             .where(Measurement.device_id == device.id)
             .values(user_id=device.user_id)
+        )
+    db.commit()
+
+
+SESSION_NOTES = [
+    "Buen control de la relajación en las primeras rondas.",
+    "Costó mantener la calma en la última serie.",
+    "Sin contracciones incómodas. Buen ritmo.",
+    "Ajustar el descanso: llegué justo a la siguiente ronda.",
+    "Mejor sensación que la sesión anterior.",
+    None,
+]
+
+
+def _ensure_demo_today_session(
+    db: Session, athletes: list[User], now: datetime
+) -> None:
+    """Asegura que las cuentas demo tengan una sesión hoy (racha visible)."""
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    demo_athletes = [a for a in athletes if "deepmind.demo" in (a.email or "")]
+    for index, athlete in enumerate(demo_athletes):
+        exists = db.scalar(
+            select(ApneaSession.id)
+            .where(
+                ApneaSession.user_id == athlete.id,
+                ApneaSession.created_at >= today_start,
+            )
+            .limit(1)
+        )
+        if exists is not None:
+            continue
+        hold = 70 + index * 8
+        db.add(
+            ApneaSession(
+                user_id=athlete.id,
+                kind="static",
+                duration_s=hold + 180,
+                max_hold_s=hold,
+                rounds_completed=3,
+                rounds_total=4,
+                contractions=1,
+                spo2_min=95,
+                heart_rate_avg=68 + index * 3,
+                notes="Sesión corta de hoy: control de la respiración y una retención cómoda.",
+                source="demo",
+                created_at=now - timedelta(minutes=45 + index * 20),
+            )
+        )
+    db.commit()
+
+
+def seed_demo_sessions(db: Session) -> None:
+    """Crea un historial de 45 días de sesiones de apnea por deportista."""
+    athletes = db.scalars(
+        select(User).where(User.role == UserRole.ATHLETE.value).order_by(User.id)
+    ).all()
+    if not athletes:
+        return
+
+    now = datetime.now().astimezone()
+    existing = db.scalar(select(ApneaSession.id).limit(1))
+    if existing is not None:
+        _ensure_demo_today_session(db, athletes, now)
+        return
+
+    kinds = ("static", "co2", "o2", "breathing")
+
+    for athlete_index, athlete in enumerate(athletes):
+        for days_ago in range(46):
+            if days_ago > 0 and (days_ago + athlete_index) % 3 == 0:
+                continue
+            seed = days_ago + athlete_index * 7
+            kind = kinds[(days_ago + athlete_index) % len(kinds)]
+            base_hold = 52 + athlete_index * 13 + round(11 * math.sin(seed * 0.33))
+
+            if kind == "static":
+                max_hold = base_hold + 18
+                rounds_total = 6
+            elif kind == "o2":
+                max_hold = max(20, base_hold - 8)
+                rounds_total = 8
+            elif kind == "breathing":
+                max_hold = None
+                rounds_total = 10
+            else:
+                max_hold = base_hold
+                rounds_total = 8
+
+            rounds_completed = max(1, rounds_total - (seed % 3))
+            duration_s = rounds_completed * (int(max_hold or 30) + 75)
+            if kind == "breathing":
+                duration_s += 60
+
+            created_at = now - timedelta(
+                days=days_ago,
+                minutes=90 + ((athlete_index * 37 + days_ago * 53) % 600),
+            )
+
+            db.add(
+                ApneaSession(
+                    user_id=athlete.id,
+                    kind=kind,
+                    duration_s=duration_s,
+                    max_hold_s=max_hold,
+                    rounds_completed=rounds_completed,
+                    rounds_total=rounds_total,
+                    contractions=(
+                        1 + (seed % 4) if kind in ("co2", "static") else 0
+                    ),
+                    spo2_min=max(
+                        86,
+                        min(
+                            98,
+                            94 - (seed % 5) + (2 if kind == "o2" else 0),
+                        ),
+                    ),
+                    heart_rate_avg=62 + (seed % 18),
+                    notes=SESSION_NOTES[seed % len(SESSION_NOTES)],
+                    source="demo",
+                    created_at=created_at,
+                )
+            )
+    db.commit()
+
+
+def seed_demo_plans(db: Session) -> None:
+    """Asigna planes activos y uno archivado para la demo del entrenador."""
+    existing = db.scalar(select(TrainingPlan.id).limit(1))
+    if existing is not None:
+        return
+
+    coach = db.scalar(
+        select(User).where(User.role == UserRole.COACH.value).order_by(User.id)
+    )
+    athletes = db.scalars(
+        select(User).where(User.role == UserRole.ATHLETE.value).order_by(User.id)
+    ).all()
+    if not athletes:
+        return
+
+    now = datetime.now().astimezone()
+    for index, athlete in enumerate(athletes):
+        db.add(
+            TrainingPlan(
+                patient_id=athlete.id,
+                coach_id=coach.id if coach else None,
+                kind="co2",
+                target_value=8,
+                rounds=8,
+                notes="Tabla CO₂: 8 rondas con 2:30 de recuperación. Para esta semana.",
+                due_date=now + timedelta(days=5),
+                is_active=True,
+            )
+        )
+        db.add(
+            TrainingPlan(
+                patient_id=athlete.id,
+                coach_id=coach.id if coach else None,
+                kind="static",
+                target_value=95 + index * 10,
+                rounds=5,
+                notes="Aguante estático controlado, siempre con compañero de seguridad.",
+                due_date=now + timedelta(days=12),
+                is_active=True,
+            )
+        )
+        db.add(
+            TrainingPlan(
+                patient_id=athlete.id,
+                coach_id=coach.id if coach else None,
+                kind="breathing",
+                target_value=None,
+                rounds=10,
+                notes="Respiración 4-4-6-2 para bajar pulsaciones antes de la apnea.",
+                due_date=now + timedelta(days=2),
+                is_active=True,
+            )
+        )
+
+    if athletes:
+        db.add(
+            TrainingPlan(
+                patient_id=athletes[0].id,
+                coach_id=coach.id if coach else None,
+                kind="o2",
+                target_value=60,
+                rounds=6,
+                notes="Plan de la semana pasada. Archivado al completarse.",
+                due_date=now - timedelta(days=3),
+                is_active=False,
+            )
         )
     db.commit()

@@ -15,6 +15,8 @@ from app.database.seed import (
     seed_demo_assignments,
     seed_demo_devices,
     seed_demo_measurements,
+    seed_demo_plans,
+    seed_demo_sessions,
     seed_demo_users,
 )
 from app.database.session import SessionLocal, engine
@@ -35,13 +37,15 @@ async def lifespan(_: FastAPI):
             seed_demo_devices(db)
             seed_demo_assignments(db)
             seed_demo_measurements(db)
+            seed_demo_sessions(db)
+            seed_demo_plans(db)
     yield
 
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0-practica1",
-    description="Práctica común: cliente-servidor, autenticación, RBAC y auditoría.",
+    version="1.1.4",
+    description="Deep Mind Apnea: seguimiento de apnea, sesiones y planes de entrenamiento.",
     lifespan=lifespan,
 )
 app.include_router(api_router)
@@ -79,7 +83,7 @@ async def validation_exception_handler(
 
 @app.get("/api/health", tags=["Sistema"])
 def health():
-    return {"status": "ok", "service": settings.app_name, "version": "1.0.0-practica1"}
+    return {"status": "ok", "service": settings.app_name, "version": "1.1.4"}
 
 
 @app.get("/", include_in_schema=False)

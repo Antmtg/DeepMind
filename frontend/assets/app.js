@@ -12,51 +12,59 @@ const loginButton = document.querySelector("#login-button");
 let currentDashboard = null;
 
 const roleNames = {
+  athlete: "Deportista",
+  coach: "Entrenador",
+  admin: "Administrador",
+  // Alias heredados para no romper enlaces o datos antiguos.
   patient: "Deportista",
   caregiver: "Entrenador",
   specialist: "Entrenador",
-  admin: "Administrador",
-  administrador: "Administrador de seguridad",
+  administrador: "Administrador",
 };
 
 const ROLE_VIEW = {
-  patient: {
-    kicker: "TU SALUD",
-    subtitle: "Este es el resumen de tu salud y tus sensores.",
+  athlete: {
+    kicker: "TU APNEA",
+    subtitle: "Tus lecturas, tus sesiones y tu plan de entrenamiento.",
   },
-  caregiver: {
-    kicker: "ACOMPAÑAMIENTO",
-    subtitle: "Revisa a las personas que tienes a tu cuidado.",
-  },
-  specialist: {
-    kicker: "PACIENTES ASIGNADOS",
-    subtitle: "Revisa a tus deportistas y sus últimas lecturas.",
+  coach: {
+    kicker: "ENTRENAMIENTO",
+    subtitle: "Revisa a tus deportistas, sus récords y asigna planes.",
   },
   admin: {
     kicker: "ADMINISTRACIÓN",
-    subtitle: "Administra usuarios, sensores y vínculos de cuidado.",
+    subtitle: "Cuentas, sensores, vínculos y auditoría del sistema.",
+  },
+  patient: {
+    kicker: "TU APNEA",
+    subtitle: "Tus lecturas, tus sesiones y tu plan de entrenamiento.",
+  },
+  caregiver: {
+    kicker: "ENTRENAMIENTO",
+    subtitle: "Revisa a tus deportistas, sus récords y asigna planes.",
+  },
+  specialist: {
+    kicker: "ENTRENAMIENTO",
+    subtitle: "Revisa a tus deportistas, sus récords y asigna planes.",
   },
   administrador: {
-    kicker: "AUDITORÍA",
-    subtitle: "Revisa la actividad y los accesos al sistema.",
+    kicker: "ADMINISTRACIÓN",
+    subtitle: "Cuentas, sensores, vínculos y auditoría del sistema.",
   },
 };
 
 const ROLE_NAV = {
-  patient: [
+  athlete: [
     { id: "resumen", label: "Mi resumen", icon: "home" },
+    { id: "entrenamiento", label: "Entrenar", icon: "drop" },
     { id: "lecturas", label: "Mis lecturas", icon: "chart" },
     { id: "sensores", label: "Mis sensores", icon: "device" },
     { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
   ],
-  caregiver: [
-    { id: "resumen", label: "Resumen", icon: "home" },
-    { id: "deportistas", label: "Mis deportistas", icon: "users" },
-    { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
-  ],
-  specialist: [
+  coach: [
     { id: "resumen", label: "Resumen", icon: "home" },
     { id: "deportistas", label: "Deportistas", icon: "users" },
+    { id: "planes", label: "Planes", icon: "check" },
     { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
   ],
   admin: [
@@ -64,13 +72,36 @@ const ROLE_NAV = {
     { id: "admin-usuarios", label: "Usuarios", icon: "users" },
     { id: "admin-sensores", label: "Sensores", icon: "device" },
     { id: "admin-asignaciones", label: "Vínculos", icon: "link" },
+    { id: "auditoria", label: "Auditoría", icon: "audit" },
+  ],
+  patient: [
+    { id: "resumen", label: "Mi resumen", icon: "home" },
+    { id: "entrenamiento", label: "Entrenar", icon: "drop" },
+    { id: "lecturas", label: "Mis lecturas", icon: "chart" },
+    { id: "sensores", label: "Mis sensores", icon: "device" },
+    { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
+  ],
+  caregiver: [
+    { id: "resumen", label: "Resumen", icon: "home" },
+    { id: "deportistas", label: "Deportistas", icon: "users" },
+    { id: "planes", label: "Planes", icon: "check" },
+    { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
+  ],
+  specialist: [
+    { id: "resumen", label: "Resumen", icon: "home" },
+    { id: "deportistas", label: "Deportistas", icon: "users" },
+    { id: "planes", label: "Planes", icon: "check" },
+    { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
   ],
   administrador: [
     { id: "resumen", label: "Resumen", icon: "home" },
-    { id: "actividad", label: "Actividad", icon: "audit" },
-    { id: "ayuda", label: "Ayuda", icon: "help", action: "help" },
+    { id: "admin-usuarios", label: "Usuarios", icon: "users" },
+    { id: "admin-sensores", label: "Sensores", icon: "device" },
+    { id: "admin-asignaciones", label: "Vínculos", icon: "link" },
+    { id: "auditoria", label: "Auditoría", icon: "audit" },
   ],
 };
+
 
 const PREF_KEY = "biomonitor.dashboard.prefs.v2";
 const AUTO_REFRESH_MS = 10_000;
@@ -105,7 +136,17 @@ const dashState = {
   editingUserId: null,
   confirmResolve: null,
   observer: null,
+  // Sesiones, planes y entrenamiento guiado.
+  sessions: [],
+  sessionSummaries: [],
+  plans: [],
+  athletes: [],
+  rosterFilter: "",
+  sessionRunner: null,
+  apneaTimer: { running: false, startedAt: 0, elapsed: 0, timer: null },
+  breathingTimer: { running: false, index: 0, remaining: 0, timer: null, type: "box" },
 };
+
 
 const RECENT_WINDOW = 15 * 60 * 1000;
 const ATTENTION_WINDOW = 24 * 60 * 60 * 1000;
@@ -124,6 +165,14 @@ const STATUS_INFO = {
 };
 
 async function apiFetch(path, options = {}) {
+  if (window.location.protocol === "file:") {
+    const error = new Error(
+      "La app no puede conectarse al servidor porque se abrió como archivo local. Usa iniciar.bat y abre http://localhost:8000/."
+    );
+    error.status = 0;
+    error.offline = true;
+    throw error;
+  }
   const response = await fetch(path, {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...options.headers },
@@ -290,6 +339,26 @@ function loadPrefs() {
   }
 }
 
+function showFileProtocolNotice() {
+  if (document.querySelector("#file-protocol-notice")) return;
+  const notice = document.createElement("div");
+  notice.id = "file-protocol-notice";
+  notice.className = "protocol-notice";
+  notice.setAttribute("role", "alert");
+  notice.innerHTML = `
+    <div class="protocol-notice-inner">
+      <span class="protocol-notice-icon" aria-hidden="true">!</span>
+      <div>
+        <strong>Esta app necesita el servidor para funcionar.</strong>
+        <p>La abriste como archivo local (<code>file://</code>), así que el inicio de sesión y los datos no pueden cargarse.</p>
+        <p>Cierra esta pestaña y abre <code>iniciar.bat</code> en la carpeta del proyecto. Luego entra a <code>http://localhost:8000/</code>.</p>
+      </div>
+      <button type="button" class="btn btn-outline" data-dismiss-protocol>Entendido</button>
+    </div>`;
+  document.body.prepend(notice);
+  notice.querySelector("[data-dismiss-protocol]")?.addEventListener("click", () => notice.remove());
+}
+
 function persistPrefs() {
   try {
     localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
@@ -409,14 +478,16 @@ async function loadRoleDashboard({ initial = false } = {}) {
   if (initial) content.innerHTML = loadingMarkup();
 
   try {
-    if (dashState.role === "patient") {
+    if (dashState.role === "athlete" || dashState.role === "patient") {
       await loadPatientDashboard();
-    } else if (dashState.role === "caregiver" || dashState.role === "specialist") {
+    } else if (
+      dashState.role === "coach" ||
+      dashState.role === "caregiver" ||
+      dashState.role === "specialist"
+    ) {
       await loadCareDashboard(dashState.role);
-    } else if (dashState.role === "admin") {
+    } else if (dashState.role === "admin" || dashState.role === "administrador") {
       await loadAdminDashboard();
-    } else if (dashState.role === "administrador") {
-      await loadAdministradorDashboard();
     }
 
     dashState.lastUpdated = new Date();
@@ -518,7 +589,14 @@ function formatRelative(value) {
   const date = parseDate(value);
   if (!date) return "fecha desconocida";
   const difference = Date.now() - date.getTime();
-  if (difference < 0) return "ahora";
+  if (difference < 0) {
+    const aheadMinutes = Math.max(1, Math.round(-difference / 60_000));
+    if (aheadMinutes < 60) return `en ${aheadMinutes} min`;
+    const aheadHours = Math.floor(aheadMinutes / 60);
+    if (aheadHours < 24) return `en ${aheadHours} h`;
+    const aheadDays = Math.round(aheadHours / 24);
+    return aheadDays === 1 ? "mañana" : `en ${aheadDays} días`;
+  }
   const minutes = Math.floor(difference / 60_000);
   if (minutes < 1) return "hace menos de 1 min";
   if (minutes < 60) return `hace ${minutes} min`;
@@ -550,15 +628,12 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function tempSource(source) {
-  return source === "sensor_die" ? "sensor_die" : "body";
-}
-
 function sourceLabel(source) {
   if (source === "simulator") return "Simulador (datos simulados)";
   if (source === "demo") return "Datos de ejemplo";
-  if (source === "sensor_die") return "ESP32 · temp. interna";
+  if (source === "sensor_die") return "ESP32 (sensor interno)";
   if (source === "esp32") return "ESP32 (sensor real)";
+  if (source === "manual") return "Registro manual";
   return "Origen desconocido";
 }
 
@@ -588,13 +663,6 @@ function metricStatus(type, value, source) {
     return "normal";
   }
 
-  if (type === "temp") {
-    if (source === "sensor_die") return "info";
-    if (number < 35 || number >= 38.5) return "critical";
-    if (number < 36 || number >= 37.6) return "review";
-    return "normal";
-  }
-
   return "normal";
 }
 
@@ -613,12 +681,9 @@ function combinedStatusFromVitals(vitals) {
 }
 
 function alertsFor(vitals) {
-  // Sin alertas textuales: solo escala de semáforo (verde/amarillo/rojo).
-  return [];
+  const alerts = [];
   const spo2 = numberOrNull(vitals.spo2);
   const pulse = numberOrNull(vitals.heart_rate_bpm);
-  const temperature = numberOrNull(vitals.temperature_c);
-  const source = vitals.temperature_source ?? "body";
 
   if (spo2 !== null) {
     if (spo2 < 90) {
@@ -637,18 +702,6 @@ function alertsFor(vitals) {
       alerts.push(`El pulso está en ${pulse} lpm. Está un poco bajo. Si te sientes bien, puede ser normal para ti.`);
     } else if (pulse > 100) {
       alerts.push(`El pulso está en ${pulse} lpm. Está un poco alto. Descansa y vuelve a medir.`);
-    }
-  }
-
-  if (temperature !== null && source !== "sensor_die") {
-    if (temperature < 35) {
-      alerts.push(`La temperatura está en ${temperature} °C. Es baja. Abrígate y busca atención si sigues así.`);
-    } else if (temperature >= 38.5) {
-      alerts.push(`La temperatura está en ${temperature} °C. Es alta. Consulta pronto.`);
-    } else if (temperature < 36) {
-      alerts.push(`La temperatura está en ${temperature} °C. Está un poco baja.`);
-    } else if (temperature >= 37.6) {
-      alerts.push(`La temperatura está en ${temperature} °C. Está un poco alta. Observa si tienes otros síntomas.`);
     }
   }
 
@@ -1206,8 +1259,16 @@ async function unpairDevice(deviceId) {
 }
 
 async function loadPatientDashboard() {
-  const { data: devices } = await apiFetch("/api/devices");
+  const [{ data: devices }, sessionsResult, summaryResult, plansResult] = await Promise.all([
+    apiFetch("/api/devices"),
+    apiFetch("/api/sessions?limit=140").catch(() => ({ data: [] })),
+    apiFetch("/api/sessions/summary").catch(() => ({ data: [] })),
+    apiFetch("/api/plans").catch(() => ({ data: [] })),
+  ]);
   dashState.devices = Array.isArray(devices) ? devices : [];
+  dashState.sessions = Array.isArray(sessionsResult.data) ? sessionsResult.data : [];
+  dashState.sessionSummaries = Array.isArray(summaryResult.data) ? summaryResult.data : [];
+  dashState.plans = Array.isArray(plansResult.data) ? plansResult.data : [];
   const deviceResults = await Promise.all(
     devices.map(async (device) => {
       try {
@@ -1240,7 +1301,14 @@ async function loadPatientDashboard() {
     ...latestItems.map((item) => item.latest.source),
   ]);
 
-  renderPatientDashboard({ devices, readings, latestItems });
+  renderPatientDashboard({
+    devices,
+    readings,
+    latestItems,
+    sessions: dashState.sessions,
+    summary: dashState.sessionSummaries[0] ?? null,
+    plans: dashState.plans,
+  });
 }
 
 function patientOverallStatus(latestItems, primary) {
@@ -1299,7 +1367,14 @@ function patientCallout(status, alerts, primary) {
   );
 }
 
-function renderPatientDashboard({ devices, readings, latestItems }) {
+function renderPatientDashboard({
+  devices,
+  readings,
+  latestItems,
+  sessions = [],
+  summary = null,
+  plans = [],
+}) {
   const content = document.querySelector("#dash-content");
   const primary = readings[0] ?? null;
   const status = patientOverallStatus(latestItems, primary);
@@ -1321,9 +1396,28 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
     caption: `Historial de ${history.length} ${plural(history.length, "lectura", "lecturas")} de tus sensores.`,
   });
 
+  const pbs = computePBs(readings, devices, sessions);
+  const maxHR = estimateMaxHR();
+  const hrZoneInfo = pbs.avgRestingPulse ? hrZone(maxHR, pbs.avgRestingPulse) : null;
+  const calendar = sessionCalendarDays(sessions, readings, 56);
+  const streak = computeStreakFromCalendar(calendar);
+  const load = sessionTrainingLoad(sessions);
+  const ratio = load.chronic ? Math.round((load.acute / load.chronic) * 100) : 0;
+  const activePlans = plans.filter((plan) => plan.is_active);
+  const zoneValues = [0, 0, 0, 0, 0];
+  sessions
+    .filter((session) => session.heart_rate_avg)
+    .forEach((session) => {
+      zoneValues[hrZone(maxHR, session.heart_rate_avg).z - 1] += 1;
+    });
+  const zoneTotal = zoneValues.reduce((total, value) => total + value, 0);
+  const zonePercent = (index) =>
+    zoneTotal ? Math.round((zoneValues[index] / zoneTotal) * 100) : [20, 25, 30, 15, 10][index];
+
   content.innerHTML = `
     <section class="dash-section" id="resumen" data-dash-section>
       ${patientCallout(status, alerts, primary)}
+      ${weekGoalCard(summary, sessions, readings)}
       <div class="vital-grid section-gap-top">
         ${vitalCard({
           label: "Oxígeno en la sangre",
@@ -1346,8 +1440,8 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
       </div>
     </section>
 
-    <section class="dash-section" id="apnea" data-dash-section>
-      ${sectionHead("APNEA", "Cronómetro tranquilo", "Acompaña tu intento de apnea. Respira con calma; el color cambia suavemente según tu oxígeno actual.")}
+    <section class="dash-section" id="entrenamiento" data-dash-section>
+      ${sectionHead("ENTRENAR", "Tu sesión de hoy", "Cronometra una apnea, corre una tabla CO₂/O₂ o prepara la respiración. Todo se guarda en tu historial y tu entrenador puede verlo.")}
       <div class="apnea-timer-card">
         <div id="apnea-semaphore" class="apnea-semaphore is-green" role="status" aria-live="polite">
           <span class="semaphore-dot" aria-hidden="true"></span>
@@ -1358,8 +1452,70 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
           <button type="button" class="dash-button" id="apnea-start">Iniciar</button>
           <button type="button" class="dash-button dash-button-quiet" id="apnea-pause">Pausar</button>
           <button type="button" class="dash-button dash-button-quiet" id="apnea-reset">Reiniciar</button>
+          <button type="button" class="dash-button dash-button-primary" data-save-apnea>Guardar apnea</button>
         </div>
-        <p class="dash-muted">Sin alertas sonoras. El semáforo se actualiza con tu última lectura.</p>
+        <p class="dash-muted">Sin alertas sonoras. El semáforo se actualiza con tu última lectura. Nunca entrenes retención en el agua sin supervisión.</p>
+      </div>
+
+      <div class="training-tables section-gap-top">
+        <article class="training-table-card tt-co2">
+          <p class="tt-eyebrow">Tolerancia al CO₂</p>
+          <h3>Tabla CO₂</h3>
+          <p>Retenciones fijas con descansos cada vez más cortos. Entrena tu tolerancia al deseo de respirar.</p>
+          <div class="tt-stats">
+            <div class="tt-stat"><div class="tt-stat-value">${co2Table(pbs.maxBreathHold || 90).hold}s</div><div class="tt-stat-label">Retención</div></div>
+            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
+          </div>
+          <div class="tt-actions">
+            <button type="button" class="tt-btn is-danger" data-start-session="co2">Iniciar tabla CO₂</button>
+          </div>
+        </article>
+        <article class="training-table-card tt-o2">
+          <p class="tt-eyebrow">Resistencia al O₂</p>
+          <h3>Tabla O₂</h3>
+          <p>Retenciones progresivas con descanso fijo. Entrena tu cuerpo a trabajar con menos oxígeno.</p>
+          <div class="tt-stats">
+            <div class="tt-stat"><div class="tt-stat-value">~75%</div><div class="tt-stat-label">De tu máximo</div></div>
+            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
+          </div>
+          <div class="tt-actions">
+            <button type="button" class="tt-btn is-primary" data-start-session="o2">Iniciar tabla O₂</button>
+          </div>
+        </article>
+      </div>
+
+      <div class="section-gap-top">
+        ${sectionHead("PLAN DEL ENTRENADOR", "Lo que te asignaron", "Los planes activos aparecen aquí. Puedes empezarlos directamente.")}
+        ${plansGrid(activePlans)}
+      </div>
+
+      <div class="section-gap-top">
+        ${sectionHead("RESPIRACIÓN GUIADA", "Box breathing · 4-7-8 · Diafragmática", "Ejercicios para preparar la apnea y recuperar después.")}
+        <div class="breathing-guide">
+          <div class="breathing-circle">
+            <div class="breathing-ring"></div>
+          </div>
+          <div class="breathing-text">Inhalar <span>4s</span></div>
+          <div class="breathing-phase" id="breath-phase">Preparado</div>
+          <div class="field" style="max-width: 280px; width: 100%;">
+            <label for="breath-type-select">Tipo de respiración</label>
+            <select id="breath-type-select">
+              <option value="box">Box breathing 4-4-4-4</option>
+              <option value="4-7-8">4-7-8 relajante</option>
+              <option value="diafragmatica">Diafragmática 5-6</option>
+            </select>
+          </div>
+          <div class="breathing-actions">
+            <button type="button" class="tt-btn is-primary" id="breath-start">Iniciar</button>
+            <button type="button" class="tt-btn is-quiet" id="breath-pause">Pausar</button>
+            <button type="button" class="tt-btn is-quiet" data-start-session="breathing">Sesión guiada</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-gap-top">
+        ${sectionHead("ACTIVIDAD RECIENTE", "Tu feed", "Sesiones y lecturas, del evento más reciente al más antiguo.")}
+        ${activityFeedHtml(sessions, readings)}
       </div>
     </section>
 
@@ -1370,6 +1526,94 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
       ${readingsHtml}
       ${sourceNote(dashState.sources)}
       <p class="reference-note">Valores de referencia: oxígeno 95–100% · pulso 60–100 lpm. No son un diagnóstico.</p>
+    </section>
+
+    <section class="dash-section" id="records" data-dash-section>
+      ${sectionHead("RÉCORDS PERSONALES", "Tu progreso en apnea", "Máxima retención, mejor oxigenación y frecuencia en reposo, calculados con tus sesiones reales.")}
+      <div class="pb-grid">
+        <article class="pb-card pb-breath">
+          <p class="pb-eyebrow">Apnea estática</p>
+          <p class="pb-value">${pbs.maxBreathHold ? formatDuration(pbs.maxBreathHold) : "—"}<small>${pbs.maxBreathHold ? "" : ""}</small></p>
+          <p class="pb-delta is-up">Tu récord personal</p>
+          <p class="pb-note">Tiempo máximo de retención de aire.</p>
+        </article>
+        <article class="pb-card pb-oxygen">
+          <p class="pb-eyebrow">Mejor SpO₂</p>
+          <p class="pb-value">${pbs.bestSpO2 ?? "—"}<small>%</small></p>
+          <p class="pb-delta ${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "is-up" : "is-down"}">${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "En rango óptimo" : "Por debajo de lo óptimo"}</p>
+          <p class="pb-note">Mejor oxigenación registrada.</p>
+        </article>
+        <article class="pb-card pb-heart">
+          <p class="pb-eyebrow">Pulso en reposo</p>
+          <p class="pb-value">${pbs.avgRestingPulse ?? "—"}<small>lpm</small></p>
+          <p class="pb-delta is-up">${hrZoneInfo ? `Zona ${hrZoneInfo.z} · ${hrZoneInfo.name}` : "—"}</p>
+          <p class="pb-note">Frecuencia cardíaca basal estimada.</p>
+        </article>
+        <article class="pb-card pb-sessions">
+          <p class="pb-eyebrow">Sesiones</p>
+          <p class="pb-value">${pbs.sessions}<small></small></p>
+          <p class="pb-delta is-up">Últimos 30 días</p>
+          <p class="pb-note">Sesiones registradas en la app.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="dash-section" id="calendario" data-dash-section>
+      ${sectionHead("CALENDARIO DE ACTIVIDAD", "Últimas 8 semanas", "Sesiones y lecturas por día. Más intenso = más actividad (estilo Strava).")}
+      <div class="activity-calendar">
+        <div class="ac-header">
+          <span class="ac-title">Actividad de ${streak} ${plural(streak, "día seguido", "días seguidos")}</span>
+          <div class="ac-legend">
+            <span class="ac-legend-dot is-4"></span><span>Mucho</span>
+            <span class="ac-legend-dot is-1"></span><span>Poco</span>
+          </div>
+        </div>
+        <div class="ac-weekday">
+          <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span><span>Do</span>
+        </div>
+        <div class="ac-grid">
+          ${calendar.map((day) => `<div class="ac-cell is-${day.level}" title="${day.key}: ${day.count} evento${day.count !== 1 ? "s" : ""}"></div>`).join("")}
+        </div>
+      </div>
+    </section>
+
+    <section class="dash-section" id="zonas-fc" data-dash-section>
+      ${sectionHead("ZONAS DE FRECUENCIA CARDÍACA", "Entrena por intensidad", "Distribución calculada con el pulso promedio de tus sesiones. FC máxima estimada: 220 − 35.")}
+      <div class="hr-zones">
+        ${[1, 2, 3, 4, 5].map((z) => {
+          const lo = Math.round(maxHR * [0, 0.6, 0.7, 0.8, 0.9][z - 1]);
+          const hi = Math.round(maxHR * [0.6, 0.7, 0.8, 0.9, 1][z - 1]);
+          const colors = ["#0f766e", "#d97706", "#00b4d8", "#b91c1c", "#78288c"];
+          return `<article class="hr-zone is-z${z}">
+            <span class="hz-dot" style="background: ${colors[z - 1]};"></span>
+            <div class="hz-name">Zona ${z}</div>
+            <div class="hz-range">${lo}–${hi} lpm</div>
+            <div class="hz-time">${zonePercent(z - 1)}%</div>
+          </article>`;
+        }).join("")}
+      </div>
+    </section>
+
+    <section class="dash-section" id="carga-entrenamiento" data-dash-section>
+      ${sectionHead("CARGA DE ENTRENAMIENTO", "Aguda (7 d) vs crónica (28 d)", "Minutos de apnea registrados. Equilibrio entre carga reciente y acumulada.")}
+      <div class="training-load">
+        <article class="tl-card is-acute">
+          <p class="tl-eyebrow">Carga aguda</p>
+          <div class="tl-value">${load.acute}<small>min</small></div>
+          <div class="tl-label">Últimos 7 días</div>
+        </article>
+        <article class="tl-card is-chronic">
+          <p class="tl-eyebrow">Carga crónica</p>
+          <div class="tl-value">${load.chronic}<small>min</small></div>
+          <div class="tl-label">Últimos 28 días</div>
+        </article>
+        <article class="tl-card" style="border-left-color: var(--dash-amber);">
+          <p class="tl-eyebrow">Racha actual</p>
+          <div class="tl-value">${streak}<small>días</small></div>
+          <div class="tl-label">Días seguidos con actividad</div>
+        </article>
+      </div>
+      <p class="reference-note">${ratio > 150 ? "Carga aguda elevada respecto a la crónica. Considera un día de recuperación." : ratio < 80 && load.chronic > 0 ? "Puedes aumentar gradualmente la carga de entrenamiento." : "Carga equilibrada. Mantén la consistencia."}</p>
     </section>
 
     <section class="dash-section" id="sensores" data-dash-section>
@@ -1396,167 +1640,19 @@ function renderPatientDashboard({ devices, readings, latestItems }) {
           </ul>
         </article>
         <article class="dash-card">
-          <h3>Para medir mejor</h3>
+          <h3>Para entrenar apnea con seguridad</h3>
           <ul class="plain-list">
-            <li>Siéntate y descansa antes de medir.</li>
-            <li>Coloca el sensor como te indicó el equipo de salud.</li>
-            <li>Revisa que el sensor esté encendido y conectado.</li>
+            <li>Nunca practiques retención en el agua sin un compañero atento.</li>
+            <li>Respeta el descanso de las tablas: es parte del entrenamiento.</li>
+            <li>Detén la sesión si sientes mareo, hormigueo o visión borrosa.</li>
             <li>Una sola lectura no reemplaza una valoración profesional.</li>
           </ul>
         </article>
       </div>
-    </section>
-
-    <section class="dash-section" id="records" data-dash-section>
-      ${sectionHead("RÉCORDS PERSONALES", "Tu progreso en apnea y deportes", "Máxima retención, mejor oxigenación y frecuencia en reposo, comparado con tu historial.")}
-      ${(function () {
-        const pbs = computePBs(readings, devices);
-        const maxHR = estimateMaxHR();
-        const hrZoneInfo = pbs.avgRestingPulse ? hrZone(maxHR, pbs.avgRestingPulse) : null;
-        return `
-        <div class="pb-grid">
-          <article class="pb-card pb-breath">
-            <p class="pb-eyebrow">Apnea estática</p>
-            <p class="pb-value">${pbs.maxBreathHold}<small>s</small></p>
-            <p class="pb-delta is-up">Tu récord personal</p>
-            <p class="pb-note">Tiempo máximo de retención de aire.</p>
-          </article>
-          <article class="pb-card pb-oxygen">
-            <p class="pb-eyebrow">Mejor SpO₂</p>
-            <p class="pb-value">${pbs.bestSpO2 ?? "—"}<small>%</small></p>
-            <p class="pb-delta ${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "is-up" : "is-down"}${pbs.bestSpO2 && pbs.bestSpO2 >= 95 ? "En rango óptimo" : "Por debajo de lo óptimo"}</p>
-            <p class="pb-note">Mejor oxigenación registrada.</p>
-          </article>
-          <article class="pb-card pb-heart">
-            <p class="pb-eyebrow">Pulso en reposo</p>
-            <p class="pb-value">${pbs.avgRestingPulse ?? "—"}<small>lpm</small></p>
-            <p class="pb-delta is-up">${hrZoneInfo ? `Zona ${hrZoneInfo.z} · ${hrZoneInfo.name}` : "—"}</p>
-            <p class="pb-note">Frecuencia cardíaca basal estimada.</p>
-          </article>
-          <article class="pb-card pb-sessions">
-            <p class="pb-eyebrow">Sesiones</p>
-            <p class="pb-value">${pbs.sessions}<small></small></p>
-            <p class="pb-delta is-up">Días con lecturas</p>
-            <p class="pb-note">Últimos 30 días de historial.</p>
-          </article>
-        </div>
-        `;
-      })()}
-    </section>
-
-    <section class="dash-section" id="calendario" data-dash-section>
-      ${sectionHead("CALENDARIO DE ACTIVIDAD", "Últimos 30 días", "Días con al menos una lectura. Más oscuro = más actividad (estilo Strava).")}
-      <div class="activity-calendar">
-        <div class="ac-header">
-          <span class="ac-title">Actividad reciente</span>
-          <div class="ac-legend">
-            <span class="ac-legend-dot is-4"></span><span>Mucho</span>
-            <span class="ac-legend-dot is-1"></span><span>Poco</span>
-          </div>
-        </div>
-        <div class="ac-weekday">
-          <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sá</span><span>Do</span>
-        </div>
-        <div class="ac-grid">
-          ${activityCalendarDays(readings).map((day) => `<div class="ac-cell is-${day.level}" title="${day.key}: ${day.count} lectura${day.count !== 1 ? "s" : ""}"></div>`).join("")}
-        </div>
-      </div>
-    </section>
-
-    <section class="dash-section" id="tablas-entrenamiento" data-dash-section>
-      ${sectionHead("TABLAS DE ENTRENAMIENTO", "CO₂ y O₂ personalizadas", "Generadas a partir de tu retención máxima. Estilo Fathom / Apnea Assistant.")}
-      <div class="training-tables">
-        <article class="training-table-card tt-co2">
-          <p class="tt-eyebrow">Tolerancia al CO₂</p>
-          <h3>Tabla CO₂</h3>
-          <p>Retenciones fijas con descansos cada vez más cortos. Entrena tu tolerancia al deseo de respirar.</p>
-          <div class="tt-stats">
-            <div class="tt-stat"><div class="tt-stat-value">${co2Table(90).hold}s</div><div class="tt-stat-label">Retención</div></div>
-            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
-          </div>
-          <div class="tt-actions">
-            <button type="button" class="tt-btn" style="background: var(--dash-red); color: var(--white);">Iniciar tabla CO₂</button>
-          </div>
-        </article>
-        <article class="training-table-card tt-o2">
-          <p class="tt-eyebrow">Resistencia al O₂</p>
-          <h3>Tabla O₂</h3>
-          <p>Retenciones progresivas con descanso fijo. Entrena tu cuerpo a trabajar con menos oxígeno.</p>
-          <div class="tt-stats">
-            <div class="tt-stat"><div class="tt-stat-value">~75%</div><div class="tt-stat-label">De tu máximo</div></div>
-            <div class="tt-stat"><div class="tt-stat-value">8</div><div class="tt-stat-label">Rondas</div></div>
-          </div>
-          <div class="tt-actions">
-            <button type="button" class="tt-btn" style="background: var(--dash-cyan); color: var(--black);">Iniciar tabla O₂</button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="dash-section" id="respiracion" data-dash-section>
-      ${sectionHead("RESPIRACIÓN GUIADA", "Box breathing · 4-7-8 · Diafragmática", "Ejercicios de respiración para pre-inmersión y recuperación de superficie.")}
-      <div class="breathing-guide">
-        <div class="breathing-circle">
-          <div class="breathing-ring"></div>
-        </div>
-        <div class="breathing-text">Inhalar <span>4s</span></div>
-        <div class="breathing-phase" id="breath-phase">Preparado</div>
-        <div class="breathing-actions">
-          <button type="button" class="tt-btn" style="background: var(--dash-cyan); color: var(--black);" id="breath-start">Iniciar</button>
-          <button type="button" class="tt-btn" id="breath-pause">Pausar</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="dash-section" id="zonas-fc" data-dash-section>
-      ${sectionHead("ZONAS DE FRECUENCIA CARDÍACA", "Entrena por intensidad", "Cinco zonas basadas en tu FC máxima estimada (220 − edad). Estilo MySwimPro / SwimTune.")}
-      <div class="hr-zones">
-        ${[1, 2, 3, 4, 5].map((z) => {
-          const maxHR = estimateMaxHR();
-          const lo = Math.round(maxHR * (z === 1 ? 0 : [0, 0.6, 0.7, 0.8, 0.9][z - 1]));
-          const hi = Math.round(maxHR * [0.6, 0.7, 0.8, 0.9, 1][z - 1]);
-          const time = z === 3 ? "42%" : z === 2 ? "28%" : z === 4 ? "18%" : z === 5 ? "8%" : "26%";
-          const colors = ["#0f766e", "#d97706", "#00b4d8", "#b91c1c", "#78288c"];
-          return `<article class="hr-zone is-z${z}">
-            <span class="hz-dot" style="background: ${colors[z - 1]};"></span>
-            <div class="hz-name">Zona ${z}</div>
-            <div class="hz-range">${lo}–${hi} lpm</div>
-            <div class="hz-time">${time}</div>
-          </article>`;
-        }).join("")}
-      </div>
-    </section>
-
-    <section class="dash-section" id="carga-entrenamiento" data-dash-section>
-      ${sectionHead("CARGA DE ENTRENAMIENTO", "Aguda (7d) vs Crónica (28d)", "Equilibrio entre carga reciente y carga acumulada. Estilo Swim Dashboard.")}
-      ${(function () {
-        const tl = trainingLoad(readings);
-        const ratio = tl.chronic ? Math.round((tl.acute / tl.chronic) * 100) : 0;
-        return `
-        <div class="training-load">
-          <article class="tl-card is-acute">
-            <p class="tl-eyebrow">Carga aguda</p>
-            <div class="tl-value">${tl.acute}</div>
-            <div class="tl-label">Lecturas últimos 7 días</div>
-          </article>
-          <article class="tl-card is-chronic">
-            <p class="tl-eyebrow">Carga crónica</p>
-            <div class="tl-value">${tl.chronic}</div>
-            <div class="tl-label">Lecturas últimos 28 días</div>
-          </article>
-          <article class="tl-card" style="border-left-color: var(--dash-amber);">
-            <p class="tl-eyebrow">Racha actual</p>
-            <div class="tl-value">${computeStreak(activityCalendarDays(readings))}<small>días</small></div>
-            <div class="tl-label">Días seguidos entrenando</div>
-          </article>
-        </div>
-        <p class="reference-note">${ratio > 150 ? "Carga aguda elevada respecto a la crónica. Considera un día de recuperación." : ratio < 80 && tl.chronic > 0 ? "Puedes aumentar gradualmente la carga de entrenamiento." : "Carga equilibrada. Mantén la consistencia."}</p>
-        `;
-      })()}
     </section>`;
+
   updateApneaSemaphore(primaryVitals?.spo2 ?? null);
 }
-
 // ============================================================================
 // MEJORAS COMPETENCIA: APNEA / DEPORTES
 // Récords personales, calendario de actividad, tablas CO₂/O₂, respiración guiada,
@@ -1576,7 +1672,7 @@ function hrZone(maxHR, bpm) {
   return { z: 5, name: "VO2máx", color: "#78288c" };
 }
 
-function computePBs(readings, devices) {
+function computePBs(readings, devices, sessions = []) {
   const spo2Values = readings
     .map((r) => Number(r.spo2))
     .filter((v) => Number.isFinite(v) && v > 0);
@@ -1585,13 +1681,21 @@ function computePBs(readings, devices) {
     .filter((v) => Number.isFinite(v) && v > 0);
   const bestSpO2 = spo2Values.length ? Math.max(...spo2Values) : null;
   const worstSpO2 = spo2Values.length ? Math.min(...spo2Values) : null;
-  const avgRestingPulse = pulseValues.length
-    ? Math.round(pulseValues.filter((v) => v < 90).reduce((a, b) => a + b, 0) / pulseValues.filter((v) => v < 90).length)
+  const resting = pulseValues.filter((v) => v < 90);
+  const avgRestingPulse = resting.length
+    ? Math.round(resting.reduce((a, b) => a + b, 0) / resting.length)
     : null;
-  const maxBreathHold = 90; // simulado: segundos (en futuro vendría del sensor/apnea timer)
-  const sessions = unique(readings.map((r) => r.measured_at?.slice(0, 10))).length;
-  return { bestSpO2, worstSpO2, avgRestingPulse, maxBreathHold, sessions };
+  const holds = sessions
+    .map((session) => Number(session.max_hold_s))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const maxBreathHold = holds.length ? Math.max(...holds) : 0;
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const sessionCount = sessions.filter(
+    (session) => dateValue(session.created_at) >= thirtyDaysAgo
+  ).length;
+  return { bestSpO2, worstSpO2, avgRestingPulse, maxBreathHold, sessions: sessionCount };
 }
+
 
 function activityCalendarDays(readings) {
   const today = new Date();
@@ -1638,6 +1742,197 @@ function trainingLoad(readings) {
   return { acute, chronic };
 }
 
+// ============================================================================
+// SESIONES Y ENTRENAMIENTO
+// ============================================================================
+
+const SESSION_KIND_LABELS = {
+  static: "Apnea estática",
+  co2: "Tabla CO₂",
+  o2: "Tabla O₂",
+  breathing: "Respiración guiada",
+  mixed: "Sesión mixta",
+};
+
+function sessionKindLabel(kind) {
+  return SESSION_KIND_LABELS[kind] ?? "Sesión";
+}
+
+function formatDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
+function localDayKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function sessionsInLastDays(sessions, days) {
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return sessions.filter((session) => dateValue(session.created_at) >= cutoff);
+}
+
+function sessionCalendarDays(sessions, readings, totalDays = 56) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const counts = {};
+  const add = (value, weight) => {
+    const key = localDayKey(value);
+    if (!key) return;
+    counts[key] = (counts[key] || 0) + weight;
+  };
+  sessions.forEach((session) => add(session.created_at, 2));
+  readings.forEach((reading) => add(reading.measured_at, 1));
+
+  const days = [];
+  for (let i = totalDays - 1; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    const key = localDayKey(date);
+    const count = counts[key] || 0;
+    let level = 0;
+    if (count >= 10) level = 4;
+    else if (count >= 6) level = 3;
+    else if (count >= 3) level = 2;
+    else if (count >= 1) level = 1;
+    days.push({ date, key, count, level });
+  }
+  return days;
+}
+
+function computeStreakFromCalendar(calendarDays) {
+  let streak = 0;
+  for (let i = calendarDays.length - 1; i >= 0; i--) {
+    if (calendarDays[i].count > 0) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function sessionTrainingLoad(sessions) {
+  const acuteMinutes = Math.round(
+    sessionsInLastDays(sessions, 7).reduce((total, session) => total + (session.duration_s || 0), 0) / 60
+  );
+  const chronicMinutes = Math.round(
+    sessionsInLastDays(sessions, 28).reduce((total, session) => total + (session.duration_s || 0), 0) / 60
+  );
+  return { acute: acuteMinutes, chronic: chronicMinutes };
+}
+
+function weekGoalCard(summary, sessions, readings = []) {
+  const recent = sessionsInLastDays(sessions, 7).length;
+  const goal = 5;
+  const pct = Math.min(100, Math.round((recent / goal) * 100));
+  const calendar = sessionCalendarDays(sessions, readings, 30);
+  const streak = computeStreakFromCalendar(calendar);
+  return `<div class="week-goal">
+    <div class="goal-ring" style="--pct: ${pct};"><strong>${recent}</strong><span>de ${goal}</span></div>
+    <div class="week-goal-copy">
+      <h3>Tu semana de apnea</h3>
+      <p>${recent === 0 ? "Aún no registras sesiones esta semana. Empieza con una tabla corta." : recent >= goal ? "Meta semanal cumplida. Mantén la recuperación." : `Te faltan ${goal - recent} ${plural(goal - recent, "sesión", "sesiones")} para completar la meta.`}</p>
+      <p><strong>${streak}</strong> ${plural(streak, "día seguido", "días seguidos")} · ${summary?.total_sessions ?? sessions.length} sesiones en total · récord ${summary?.best_hold_s ? formatDuration(summary.best_hold_s) : "—"}</p>
+    </div>
+    <div class="week-goal-actions">
+      <button type="button" class="tt-btn is-primary" data-start-session="static">Apnea libre</button>
+      <button type="button" class="tt-btn is-quiet" data-start-session="co2">Tabla CO₂</button>
+      <button type="button" class="tt-btn is-quiet" data-start-session="breathing">Respirar</button>
+    </div>
+  </div>`;
+}
+
+function activityFeedHtml(sessions, readings) {
+  const items = [
+    ...sessions.map((session) => ({
+      at: dateValue(session.created_at),
+      kind: session.kind,
+      title: sessionKindLabel(session.kind),
+      meta: `${formatRelative(session.created_at)} · ${session.rounds_completed || 0}/${session.rounds_total || 0} rondas${session.spo2_min ? ` · SpO₂ mín. ${session.spo2_min}%` : ""}`,
+      value: session.max_hold_s ? `${session.max_hold_s}s` : formatDuration(session.duration_s),
+    })),
+    ...readings.slice(0, 20).map((reading) => ({
+      at: dateValue(reading.measured_at),
+      kind: "reading",
+      title: "Lectura de sensor",
+      meta: `${formatRelative(reading.measured_at)} · ${reading.device?.name ?? "Sensor"}`,
+      value: `${reading.spo2 ?? "—"}%`,
+    })),
+  ].sort((a, b) => b.at - a.at).slice(0, 6);
+
+  if (!items.length) {
+    return `<div class="feed-empty">Aún no hay actividad. Inicia una apnea o una tabla para ver tu historial aquí.</div>`;
+  }
+
+  return `<div class="activity-feed">${items
+    .map((item) => {
+      const iconKind = item.kind === "reading" ? "is-reading" : `is-${item.kind}`;
+      const iconName = item.kind === "co2" ? "alert" : item.kind === "o2" ? "drop" : item.kind === "breathing" ? "heart" : item.kind === "reading" ? "chart" : "check";
+      return `<article class="feed-item">
+        <span class="feed-icon ${iconKind}">${iconFor(iconName)}</span>
+        <div class="feed-body"><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.meta)}</p></div>
+        <span class="feed-value">${escapeHtml(item.value)}</span>
+      </article>`;
+    })
+    .join("")}</div>`;
+}
+
+function plansGrid(plans) {
+  if (!plans.length) {
+    return emptyState({
+      title: "Sin plan asignado",
+      text: "Tu entrenador todavía no te asignó un plan. Mientras tanto puedes usar las tablas sugeridas.",
+      icon: "check",
+    });
+  }
+  return `<div class="plan-grid">${plans
+    .map((plan) => {
+      const target = plan.target_value
+        ? plan.kind === "static" ? `${plan.target_value}s` : `${plan.target_value} rondas`
+        : `${plan.rounds} rondas`;
+      const due = plan.due_date ? `Entrega ${formatRelative(plan.due_date)}` : "Sin fecha límite";
+      return `<article class="plan-card">
+        <span class="plan-kind">${escapeHtml(sessionKindLabel(plan.kind))}</span>
+        <h4>${escapeHtml(target)}</h4>
+        <p>${escapeHtml(plan.notes || "Plan asignado por tu entrenador.")}</p>
+        <div class="plan-meta"><span>${escapeHtml(due)}</span><span>${escapeHtml(plan.coach_name || "Entrenador")}</span></div>
+        <button type="button" class="tt-btn is-primary" data-start-session="${escapeHtml(plan.kind)}" data-plan-id="${plan.id}">Empezar plan</button>
+      </article>`;
+    })
+    .join("")}</div>`;
+}
+
+function sessionsTable(sessions, { showAthlete = false, caption = "" } = {}) {
+  if (!sessions.length) {
+    return `<div class="feed-empty">Todavía no hay sesiones registradas.</div>`;
+  }
+  const rows = sessions
+    .map((session) => {
+      const athlete = showAthlete ? `<td>${escapeHtml(session.athlete_name || "—")}</td>` : "";
+      return `<tr>
+        <td><strong>${escapeHtml(formatDateTime(session.created_at))}</strong><small>${escapeHtml(formatRelative(session.created_at))}</small></td>
+        ${athlete}
+        <td>${escapeHtml(sessionKindLabel(session.kind))}</td>
+        <td>${session.max_hold_s ? `${session.max_hold_s}s` : "—"}</td>
+        <td>${session.rounds_completed}/${session.rounds_total ?? "—"}</td>
+        <td>${session.spo2_min ? `${session.spo2_min}%` : "—"}</td>
+        <td>${escapeHtml(formatDuration(session.duration_s))}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<div class="table-wrap"><table class="roster-table">
+    <caption>${escapeHtml(caption || `${sessions.length} ${plural(sessions.length, "sesión", "sesiones")} registradas.`)}</caption>
+    <thead><tr><th scope="col">Fecha</th>${showAthlete ? '<th scope="col">Deportista</th>' : ""}<th scope="col">Tipo</th><th scope="col">Récord</th><th scope="col">Rondas</th><th scope="col">SpO₂ mín.</th><th scope="col">Duración</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+
+
 function co2Table(maxHoldSeconds) {
   const rounds = 8;
   const hold = Math.max(10, Math.round(maxHoldSeconds * 0.5));
@@ -1669,9 +1964,25 @@ function breathingCycles(type = "box") {
 }
 
 async function loadCareDashboard(role) {
-  const { data: patients } = await apiFetch("/api/care/patients");
-  dashState.carePatients = patients;
-  renderCareDashboard(role, patients);
+  const [
+    patientsResponse,
+    summariesResponse,
+    athletesResponse,
+    plansResponse,
+    sessionsResponse,
+  ] = await Promise.all([
+    apiFetch("/api/care/patients"),
+    apiFetch("/api/sessions/summary").catch(() => ({ data: [] })),
+    apiFetch("/api/sessions/athletes").catch(() => ({ data: [] })),
+    apiFetch("/api/plans").catch(() => ({ data: [] })),
+    apiFetch("/api/sessions?limit=100").catch(() => ({ data: [] })),
+  ]);
+  dashState.carePatients = Array.isArray(patientsResponse.data) ? patientsResponse.data : [];
+  dashState.sessionSummaries = Array.isArray(summariesResponse.data) ? summariesResponse.data : [];
+  dashState.athletes = Array.isArray(athletesResponse.data) ? athletesResponse.data : [];
+  dashState.plans = Array.isArray(plansResponse.data) ? plansResponse.data : [];
+  dashState.sessions = Array.isArray(sessionsResponse.data) ? sessionsResponse.data : [];
+  renderCareDashboard(role, dashState.carePatients);
 }
 
 function careCallout(patient) {
@@ -1720,14 +2031,22 @@ function careCallout(patient) {
   );
 }
 
+function sessionSummaryFor(patientId) {
+  return dashState.sessionSummaries.find((summary) => summary.patient_id === patientId) ?? null;
+}
+
 function carePatientCard(patient) {
   const latest = patient.latest;
   const alerts = patient.alerts ?? [];
   const name = patient.patient.full_name;
-  const relation = patient.relationship === "caregiver" ? "A tu cuidado" : "Deportista asignado";
+  const summary = sessionSummaryFor(patient.patient.id);
+  const relation = dashState.role === "coach" ? "Deportista asignado" : "A tu cuidado";
   const lastLine = latest
     ? `Última lectura: ${formatRelative(latest.taken_at)} · ${patient.device_count} ${plural(patient.device_count, "sensor", "sensores")} · ${sourceLabel(latest.source)}`
     : `Sin lecturas · ${patient.device_count} ${plural(patient.device_count, "sensor", "sensores")}`;
+  const sessionLine = summary
+    ? `${summary.sessions_30d} ${plural(summary.sessions_30d, "sesión", "sesiones")} en 30 días · récord ${summary.best_hold_s ? formatDuration(summary.best_hold_s) : "—"}`
+    : "Sin sesiones de apnea registradas.";
   const alertBox = alerts.length
     ? `<div class="patient-alerts ${patient.status === "critical" ? "is-critical" : ""}"><strong>Para revisar</strong>${alertListHtml(alerts.slice(0, 3))}</div>`
     : "";
@@ -1742,20 +2061,124 @@ function carePatientCard(patient) {
     </div>
     ${miniVitals(latest)}
     <p class="dash-muted">${escapeHtml(lastLine)}</p>
+    <p class="dash-muted"><strong>${escapeHtml(sessionLine)}</strong></p>
     ${alertBox}
-    <button type="button" class="dash-button dash-button-quiet" data-patient-id="${patient.patient.id}" aria-label="Ver detalle de ${escapeHtml(name)}">Ver detalle</button>
+    <div class="week-goal-actions">
+      <button type="button" class="dash-button dash-button-quiet" data-patient-id="${patient.patient.id}">Ver detalle</button>
+      <button type="button" class="dash-button dash-button-quiet" data-assign-plan="${patient.patient.id}">Asignar plan</button>
+    </div>
   </article>`;
 }
 
-function renderCareDashboard(role, patients) {
+function coachPlanCard(plan) {
+  const target = plan.target_value
+    ? plan.kind === "static" ? `${plan.target_value}s` : `${plan.target_value} rondas`
+    : `${plan.rounds} rondas`;
+  return `<article class="plan-card ${plan.is_active ? "" : "is-done"}">
+    <span class="plan-kind">${escapeHtml(sessionKindLabel(plan.kind))} · ${escapeHtml(plan.patient_name || "Deportista")}</span>
+    <h4>${escapeHtml(target)}</h4>
+    <p>${escapeHtml(plan.notes || "Sin notas.")}</p>
+    <div class="plan-meta"><span>${plan.due_date ? `Entrega ${formatRelative(plan.due_date)}` : "Sin fecha"}</span><span>${plan.rounds} rondas</span></div>
+    ${plan.is_active ? `<button type="button" class="tt-btn is-quiet" data-archive-plan="${plan.id}">Archivar plan</button>` : `<span class="trend-pill is-flat">Archivado</span>`}
+  </article>`;
+}
+
+function coachRoster(patients) {
+  const filter = dashState.rosterFilter.trim().toLowerCase();
+  const rows = patients
+    .filter((patient) => !filter || patient.patient.full_name.toLowerCase().includes(filter))
+    .map((patient) => {
+      const summary = sessionSummaryFor(patient.patient.id);
+      const initialsText = initials(patient.patient.full_name);
+      const best = summary?.best_hold_s ? formatDuration(summary.best_hold_s) : "—";
+      const last = summary?.last_session_at ? formatRelative(summary.last_session_at) : "Sin sesiones";
+      const trendClass = (summary?.sessions_30d ?? 0) >= 8 ? "" : (summary?.sessions_30d ?? 0) > 0 ? "is-flat" : "is-down";
+      return `<tr>
+        <td><div class="roster-person"><span class="roster-avatar">${escapeHtml(initialsText)}</span><div><strong>${escapeHtml(patient.patient.full_name)}</strong><small>${escapeHtml(patient.device_names?.join(", ") || "Sin sensores")}</small></div></div></td>
+        <td>${escapeHtml(last)}</td>
+        <td><span class="trend-pill ${trendClass}">${summary?.sessions_30d ?? 0} sesiones</span></td>
+        <td><strong>${escapeHtml(best)}</strong></td>
+        <td>${summary?.avg_spo2_min ? `${summary.avg_spo2_min}%` : "—"}</td>
+        <td>${statusPill(patient.status)}</td>
+        <td>
+          <div class="week-goal-actions">
+            <button type="button" class="tt-btn is-quiet" data-patient-id="${patient.patient.id}">Detalle</button>
+            <button type="button" class="tt-btn is-primary" data-assign-plan="${patient.patient.id}">Plan</button>
+          </div>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  if (!rows) {
+    return `<div class="roster-empty">No hay deportistas que coincidan con «${escapeHtml(dashState.rosterFilter)}».</div>`;
+  }
+
+  return `<div class="table-wrap"><table class="roster-table">
+    <caption>Plantilla de deportistas asignados.</caption>
+    <thead><tr><th scope="col">Deportista</th><th scope="col">Última sesión</th><th scope="col">30 días</th><th scope="col">Récord</th><th scope="col">SpO₂ mín.</th><th scope="col">Sensor</th><th scope="col">Acciones</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function planAssignForm() {
+  const options = dashState.athletes
+    .map((athlete) => `<option value="${athlete.id}">${escapeHtml(athlete.full_name)}</option>`)
+    .join("");
+  return `<form id="plan-form" class="plan-assign">
+    <h3>Asignar un plan de entrenamiento</h3>
+    <p class="dash-muted">El deportista lo verá en su panel y podrá empezarlo desde ahí.</p>
+    <div class="form-row">
+      <div class="field">
+        <label for="plan-patient">Deportista</label>
+        <select id="plan-patient" name="patient_id" required>${options}</select>
+      </div>
+      <div class="field">
+        <label for="plan-kind">Tipo de plan</label>
+        <select id="plan-kind" name="kind">
+          <option value="co2">Tabla CO₂</option>
+          <option value="o2">Tabla O₂</option>
+          <option value="static">Apnea estática</option>
+          <option value="breathing">Respiración guiada</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label for="plan-target">Objetivo (segundos o rondas)</label>
+        <input id="plan-target" name="target_value" type="number" min="0" max="1200" placeholder="Ej. 90" />
+      </div>
+      <div class="field">
+        <label for="plan-rounds">Rondas</label>
+        <input id="plan-rounds" name="rounds" type="number" min="1" max="50" value="8" required />
+      </div>
+      <div class="field">
+        <label for="plan-due">Fecha límite</label>
+        <input id="plan-due" name="due_date" type="date" />
+      </div>
+    </div>
+    <div class="field">
+      <label for="plan-notes">Notas para el deportista</label>
+      <textarea id="plan-notes" name="notes" maxlength="500" placeholder="Ej. Descanso de 2:30 entre rondas. Sin apnea en agua sin supervisión."></textarea>
+    </div>
+    <button type="submit" class="dash-button dash-button-primary">Asignar plan</button>
+  </form>`;
+}
+
+function renderCareDashboard(role) {
   const content = document.querySelector("#dash-content");
-  const specialist = role === "specialist";
+  const patients = dashState.carePatients;
+  const summaries = dashState.sessionSummaries;
+  const activePlans = dashState.plans.filter((plan) => plan.is_active);
   const attention = patients.filter((patient) => patient.status === "review" || patient.status === "critical");
   const critical = patients.filter((patient) => patient.status === "critical");
   const withoutData = patients.filter((patient) => patient.status === "offline" || patient.status === "no_data");
   const deviceCount = patients.reduce((total, patient) => total + patient.device_count, 0);
   const names = attention.map((patient) => firstName(patient.patient.full_name));
   const careSources = unique(patients.map((patient) => patient.latest?.source).filter(Boolean));
+  const sessions30d = summaries.reduce((total, summary) => total + (summary.sessions_30d || 0), 0);
+  const bestHold = summaries.reduce((best, summary) => Math.max(best, summary.best_hold_s || 0), 0);
+  const recentSessions = dashState.sessions.slice(0, 8);
 
   let summary;
   if (critical.length) {
@@ -1784,34 +2207,67 @@ function renderCareDashboard(role, patients) {
       "info",
       "i",
       "Todavía no tienes deportistas asignados",
-      "<p>Pide al administrador que cree un vínculo de cuidado. En esta versión no se crean cuentas nuevas.</p>"
+      "<p>Pide al administrador que cree un vínculo de entrenamiento. En esta versión no se crean cuentas nuevas.</p>"
     );
   }
 
   content.innerHTML = `
     <section class="dash-section" id="resumen" data-dash-section>
       ${sectionHead(
-        specialist ? "RESUMEN CLÍNICO" : "RESUMEN DE ACOMPAÑAMIENTO",
-        specialist ? "Tus deportistas asignados" : "Las personas a tu cuidado",
-        specialist
-          ? "Revisa las últimas lecturas y los sensores de tus deportistas."
-          : "Revisa cómo están las personas que tienes asignadas."
+        "ENTRENAMIENTO",
+        "Tu plantilla",
+        "Revisa las últimas lecturas, los récords y las sesiones de tus deportistas."
       )}
-      <div class="grid-4 section-gap-bottom">
-        ${metricCard("Personas asignadas", String(patients.length), patients.length === 1 ? "Un deportista" : "Deportistas")}
-        ${metricCard("Para revisar", String(attention.length), attention.length === 1 ? "Una persona" : "Personas")}
-        ${metricCard("Sensores", String(deviceCount), deviceCount === 1 ? "Un sensor" : "Sensores")}
-        ${metricCard("Sin lectura reciente", String(withoutData.length), withoutData.length === 1 ? "Una persona" : "Personas")}
+      <div class="coach-summary">
+        <article class="coach-kpi"><span>Deportistas</span><strong>${patients.length}</strong><small>${attention.length} para revisar</small></article>
+        <article class="coach-kpi"><span>Sesiones 30 d</span><strong>${sessions30d}</strong><small>Registradas en la app</small></article>
+        <article class="coach-kpi"><span>Mejor retención</span><strong>${bestHold ? formatDuration(bestHold) : "—"}</strong><small>Récord de la plantilla</small></article>
+        <article class="coach-kpi"><span>Planes activos</span><strong>${activePlans.length}</strong><small>${withoutData.length} sin lectura reciente</small></article>
       </div>
       ${summary}
     </section>
 
     <section class="dash-section" id="deportistas" data-dash-section>
       ${sectionHead(
-        "PACIENTES",
-        specialist ? "Deportistas para revisar" : "Mis deportistas",
-        "Abre el detalle para ver los signos vitales, los sensores y las lecturas recientes."
+        "PLANTILLA",
+        "Deportistas asignados",
+        "Filtra por nombre y abre el detalle para ver lecturas, sesiones y planes."
       )}
+      <div class="roster-controls">
+        <div class="field">
+          <label for="roster-filter">Buscar deportista</label>
+          <input id="roster-filter" type="search" placeholder="Nombre…" value="${escapeHtml(dashState.rosterFilter)}" />
+        </div>
+        <button type="button" class="dash-button dash-button-quiet" data-open-help>Guía de seguridad</button>
+      </div>
+      ${coachRoster(patients)}
+      <p class="reference-note">Las lecturas son de apoyo y no sustituyen una valoración profesional. ${sourceNote(careSources)}</p>
+    </section>
+
+    <section class="dash-section" id="planes" data-dash-section>
+      ${sectionHead(
+        "PLANES",
+        "Asignar y revisar tablas",
+        "Crea un plan para un deportista. Aparecerá en su panel con la fecha límite y tus notas."
+      )}
+      ${planAssignForm()}
+      <div class="section-gap-top">
+        <h3>Planes activos</h3>
+        ${activePlans.length ? `<div class="plan-grid">${activePlans.map(coachPlanCard).join("")}</div>` : `<div class="feed-empty">Todavía no hay planes activos.</div>`}
+      </div>
+    </section>
+
+    <section class="dash-section" id="actividad" data-dash-section>
+      ${sectionHead(
+        "ACTIVIDAD",
+        "Últimas sesiones de la plantilla",
+        "Sesiones registradas por tus deportistas, de la más reciente a la más antigua."
+      )}
+      ${sessionsTable(recentSessions, { showAthlete: true, caption: "Últimas sesiones registradas por la plantilla." })}
+    </section>
+
+    <section class="dash-section" id="seguimiento" data-dash-section>
+      ${sectionHead("SEGUIMIENTO", "Fichas de tus deportistas", "Un vistazo rápido a los signos vitales y al estado de cada deportista.")}
       ${patients.length ? `<div class="patient-grid">${patients.map(carePatientCard).join("")}</div>` : emptyState({
         title: "Aún no tienes personas asignadas",
         text: "El administrador debe crear un vínculo entre tu cuenta y un deportista. Mientras tanto, puedes consultar la guía de ayuda.",
@@ -1819,35 +2275,27 @@ function renderCareDashboard(role, patients) {
         actionAttr: "data-open-help",
         icon: "users",
       })}
-      <p class="reference-note">Las lecturas son de apoyo y no sustituyen una valoración profesional.</p>
-      ${sourceNote(careSources)}
     </section>
 
     <section class="dash-section" id="recomendaciones" data-dash-section>
-      ${sectionHead(
-        "CÓMO ACOMPAÑAR",
-        specialist ? "Cómo revisar las lecturas" : "Cómo acompañar",
-        specialist
-          ? "Recomendaciones generales para revisar la información de tus deportistas."
-          : "Recomendaciones generales para acompañar sin reemplazar la atención profesional."
-      )}
+      ${sectionHead("CÓMO ACOMPAÑAR", "Recomendaciones de entrenamiento", "Pautas generales para revisar la información de tus deportistas.")}
       <div class="grid-2">
         <article class="dash-card">
-          <h3>${specialist ? "Al revisar una alerta" : "Cuando hay una alerta"}</h3>
+          <h3>Al revisar una alerta</h3>
           <ul class="plain-list">
-            <li>${specialist ? "Revisa la tendencia, no solo una lectura aislada." : "Llama a la persona y pregunta cómo se siente."}</li>
-            <li>${specialist ? "Confirma con el deportista cómo se siente y si tiene síntomas." : "No te bases solo en los números: observa si hay síntomas."}</li>
-            <li>${specialist ? "Sigue el protocolo de tu institución." : "Si hay dificultad para respirar, dolor en el pecho o desmayo, llama a emergencias."}</li>
-            <li>${specialist ? "Las lecturas son de apoyo; no sustituyen tu valoración." : "No cambies medicamentos ni dosis por tu cuenta."}</li>
+            <li>Revisa la tendencia, no solo una lectura aislada.</li>
+            <li>Confirma con el deportista cómo se siente y si tiene síntomas.</li>
+            <li>Sigue el protocolo de tu institución.</li>
+            <li>Las lecturas son de apoyo; no sustituyen tu valoración.</li>
           </ul>
         </article>
         <article class="dash-card">
-          <h3>Para tener en cuenta</h3>
+          <h3>Al asignar apnea</h3>
           <ul class="plain-list">
-            <li>Los rangos son de referencia y no un diagnóstico.</li>
-            <li>Una lectura puede variar por el movimiento, el frío o la colocación del sensor.</li>
-            <li>Si no hay datos, revisa que el sensor esté encendido y conectado.</li>
-            <li>Ante una emergencia, llama al 911 o al número local de emergencias.</li>
+            <li>Nunca programes retención en el agua sin supervisión presencial.</li>
+            <li>Ajusta las rondas al descanso real del deportista.</li>
+            <li>Detén el plan ante mareo, hormigueo o visión borrosa.</li>
+            <li>Revisa las sesiones registradas antes de subir la carga.</li>
           </ul>
         </article>
       </div>
@@ -1864,8 +2312,12 @@ async function openPatientDetail(patientId) {
   openDialog("#patient-dialog");
 
   try {
-    const { data } = await apiFetch(`/api/care/patients/${patientId}?limit=${dashState.historyLimit}`);
-    renderPatientDetail(data);
+    const [{ data }, sessionsResponse, plansResponse] = await Promise.all([
+      apiFetch(`/api/care/patients/${patientId}?limit=${dashState.historyLimit}`),
+      apiFetch(`/api/sessions?patient_id=${patientId}&limit=20`).catch(() => ({ data: [] })),
+      apiFetch(`/api/plans?patient_id=${patientId}`).catch(() => ({ data: [] })),
+    ]);
+    renderPatientDetail(data, sessionsResponse.data ?? [], plansResponse.data ?? []);
   } catch (error) {
     const message = error.status === 403 ? "No tienes una asignación activa con este deportista." : "Revisa tu conexión y vuelve a intentarlo.";
     body.innerHTML = `<div class="empty-state" role="alert">
@@ -1877,11 +2329,13 @@ async function openPatientDetail(patientId) {
   }
 }
 
-function renderPatientDetail(data) {
+function renderPatientDetail(data, sessions = [], plans = []) {
   const name = data.patient.full_name;
   document.querySelector("#patient-dialog-title").textContent = name;
   document.querySelector("#patient-dialog-kicker").textContent =
-    data.relationship === "caregiver" ? "PERSONA A TU CUIDADO" : "PACIENTE ASIGNADO";
+    data.relationship === "coach" || data.relationship === "caregiver"
+      ? "DEPORTISTA ASIGNADO"
+      : "DEPORTISTA";
 
   const body = document.querySelector("#patient-dialog-body");
   const deviceRows = data.devices
@@ -1929,6 +2383,15 @@ function renderPatientDetail(data) {
     ${vitalsCharts(history)}
     ${readings}
     ${sourceNote(sources)}
+    <h3>Sesiones de apnea</h3>
+    ${sessionsTable(sessions, { caption: `Últimas sesiones de ${name}.` })}
+    <h3>Planes asignados</h3>
+    ${plans.length ? `<div class="plan-grid">${plans.map((plan) => `<article class="plan-card">
+      <span class="plan-kind">${escapeHtml(sessionKindLabel(plan.kind))}</span>
+      <h4>${plan.target_value ? `${plan.target_value}${plan.kind === "static" ? "s" : " rondas"}` : `${plan.rounds} rondas`}</h4>
+      <p>${escapeHtml(plan.notes || "Sin notas.")}</p>
+      <div class="plan-meta"><span>${plan.due_date ? `Entrega ${formatRelative(plan.due_date)}` : "Sin fecha"}</span><span>${plan.is_active ? "Activo" : "Archivado"}</span></div>
+    </article>`).join("")}</div>` : `<div class="feed-empty">Sin planes asignados.</div>`}
     <p class="reference-note">Las lecturas no sustituyen una valoración profesional.</p>`;
 }
 
@@ -1938,6 +2401,8 @@ function renderPatientDetail(data) {
 // ============================================================================
 
 const RELATIONSHIP_LABELS = {
+  athlete: "Deportista",
+  coach: "Entrenador",
   caregiver: "Entrenador",
   specialist: "Entrenador",
 };
@@ -1948,16 +2413,55 @@ function personOption(person) {
 
 async function loadAdminDashboard() {
   const includeInactive = Boolean(dashState.assignmentsIncludeInactive);
-  const [usersResponse, devicesResponse, assignmentsResponse] = await Promise.all([
+  const filters = dashState.auditFilters;
+  const params = new URLSearchParams({ limit: String(filters.limit) });
+  if (filters.status) params.set("status", filters.status);
+  if (filters.action) params.set("action", filters.action);
+
+  const [
+    usersResponse,
+    devicesResponse,
+    assignmentsResponse,
+    auditResponse,
+    summariesResponse,
+    sessionsResponse,
+    plansResponse,
+  ] = await Promise.all([
     apiFetch("/api/users"),
     apiFetch("/api/devices"),
     apiFetch(`/api/care/assignments?include_inactive=${includeInactive}`),
+    apiFetch(`/api/audit?${params.toString()}`).catch(() => ({ data: [] })),
+    apiFetch("/api/sessions/summary").catch(() => ({ data: [] })),
+    apiFetch("/api/sessions?limit=120").catch(() => ({ data: [] })),
+    apiFetch("/api/plans?include_inactive=true").catch(() => ({ data: [] })),
   ]);
 
   dashState.users = Array.isArray(usersResponse.data) ? usersResponse.data : [];
   dashState.devices = Array.isArray(devicesResponse.data) ? devicesResponse.data : [];
   dashState.assignments = Array.isArray(assignmentsResponse.data) ? assignmentsResponse.data : [];
+  dashState.audit = Array.isArray(auditResponse.data) ? auditResponse.data : [];
+  dashState.sessionSummaries = Array.isArray(summariesResponse.data) ? summariesResponse.data : [];
+  dashState.sessions = Array.isArray(sessionsResponse.data) ? sessionsResponse.data : [];
+  dashState.plans = Array.isArray(plansResponse.data) ? plansResponse.data : [];
   renderAdminDashboard();
+}
+
+function adminBarChart(title, rows) {
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  return `<div class="dash-card">
+    <h3>${escapeHtml(title)}</h3>
+    <div class="bar-chart">
+      ${rows
+        .map(
+          (row) => `<div class="bar-row">
+            <span class="bar-label">${escapeHtml(row.label)}</span>
+            <span class="bar-track"><span class="bar-fill" style="width: ${Math.round((row.value / max) * 100)}%; background: ${row.color || "linear-gradient(90deg, var(--dash-cyan), var(--dash-teal))"};"></span></span>
+            <span class="bar-value">${row.value}</span>
+          </div>`
+        )
+        .join("")}
+    </div>
+  </div>`;
 }
 
 function renderAdminDashboard() {
@@ -1965,26 +2469,74 @@ function renderAdminDashboard() {
   const users = dashState.users;
   const devices = dashState.devices;
   const assignments = dashState.assignments;
+  const audit = dashState.audit;
+  const summaries = dashState.sessionSummaries;
+  const sessions = dashState.sessions;
+  const plans = dashState.plans;
+  const filters = dashState.auditFilters;
+
   const activeUsers = users.filter((user) => user.is_active);
-  const patients = activeUsers.filter((user) => user.role === "patient");
-  const members = activeUsers.filter((user) => user.role === "caregiver" || user.role === "specialist");
+  const athletes = activeUsers.filter((user) => user.role === "athlete" || user.role === "patient");
+  const coaches = activeUsers.filter((user) => user.role === "coach" || user.role === "caregiver" || user.role === "specialist");
+  const admins = activeUsers.filter((user) => user.role === "admin" || user.role === "administrador");
   const activeDevices = devices.filter((device) => device.is_active);
   const inactiveDevices = devices.filter((device) => !device.is_active);
   const activeAssignments = assignments.filter((assignment) => assignment.is_active);
+  const totalSessions = summaries.reduce((total, summary) => total + (summary.total_sessions || 0), 0);
+  const sessions30d = summaries.reduce((total, summary) => total + (summary.sessions_30d || 0), 0);
+  const activePlans = plans.filter((plan) => plan.is_active);
+  const denied = audit.filter((event) => event.status === "DENIED");
+  const successfulLogins = audit.filter((event) => event.action === "LOGIN" && event.status === "SUCCESS");
+  const last = audit[0];
 
-  let summary = callout(
-    "info",
-    "i",
-    "Resumen de administración",
-    `<p>Tienes ${users.length} ${plural(users.length, "cuenta registrada", "cuentas registradas")}, ${devices.length} ${plural(devices.length, "sensor", "sensores")} y ${activeAssignments.length} ${plural(activeAssignments.length, "vínculo activo", "vínculos activos")}.</p><p>Desde «Usuarios» puedes dar de alta cuentas con el correo institucional, asignar su contraseña en persona y desactivar accesos.</p>`
-  );
+  const dayCounts = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 13; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    dayCounts[localDayKey(date)] = 0;
+  }
+  sessions.forEach((session) => {
+    const key = localDayKey(session.created_at);
+    if (key in dayCounts) dayCounts[key] += 1;
+  });
+  const activityRows = Object.entries(dayCounts).map(([key, value]) => ({
+    label: key.slice(5),
+    value,
+  }));
 
-  if (!activeAssignments.length) {
+  const roleRows = [
+    { label: "Deportistas", value: athletes.length },
+    { label: "Entrenadores", value: coaches.length },
+    { label: "Administradores", value: admins.length },
+  ];
+  const planRows = ["co2", "o2", "static", "breathing"].map((kind) => ({
+    label: sessionKindLabel(kind),
+    value: plans.filter((plan) => plan.kind === kind && plan.is_active).length,
+  }));
+
+  let summary;
+  if (denied.length) {
+    summary = callout(
+      "warning",
+      "!",
+      "Hay accesos rechazados en la auditoría",
+      `<p>${denied.length} ${plural(denied.length, "evento aparece", "eventos aparecen")} como rechazado en esta vista. Revisa si fue un error de contraseña o un intento sin permiso.</p><p>Un acceso rechazado no confirma por sí solo un incidente de seguridad.</p>`
+    );
+  } else if (!activeAssignments.length) {
     summary = callout(
       "warning",
       "!",
       "Aún no hay vínculos activos",
-      "<p>Sin un vínculo, un entrenador o entrenador no puede ver las lecturas de un deportista. Crea el primero en la sección «Vínculos».</p>"
+      "<p>Sin un vínculo, un entrenador no puede ver las lecturas de un deportista. Crea el primero en la sección «Vínculos».</p>"
+    );
+  } else {
+    summary = callout(
+      "success",
+      "✓",
+      "Sistema operativo",
+      `<p>${users.length} ${plural(users.length, "cuenta", "cuentas")}, ${devices.length} ${plural(devices.length, "sensor", "sensores")} y ${activeAssignments.length} ${plural(activeAssignments.length, "vínculo activo", "vínculos activos")}.</p><p>${totalSessions} sesiones de apnea registradas; ${sessions30d} en los últimos 30 días.</p>`
     );
   }
 
@@ -2002,16 +2554,29 @@ function renderAdminDashboard() {
       ${sectionHead(
         "ADMINISTRACIÓN",
         "Resumen del sistema",
-        "Usuarios, sensores y vínculos de cuidado."
+        "Cuentas, sensores, vínculos, sesiones y salud de la plataforma."
       )}
       <div class="grid-4 section-gap-bottom">
         ${metricCard("Cuentas", String(users.length), `${activeUsers.length} ${plural(activeUsers.length, "activa", "activas")}`)}
-        ${metricCard("Deportistas", String(patients.length), "Cuentas con rol de deportista")}
-        ${metricCard("Sensores activos", String(activeDevices.length), `${devices.length} en total`)}
-        ${metricCard("Vínculos activos", String(activeAssignments.length), "Deportista y acompañante")}
+        ${metricCard("Deportistas", String(athletes.length), `${coaches.length} entrenadores`)}
+        ${metricCard("Sesiones", String(totalSessions), `${sessions30d} en 30 días`)}
+        ${metricCard("Planes activos", String(activePlans.length), `${devices.length} sensores en total`)}
       </div>
       ${summary}
       ${deviceWarning ? `<div class="section-gap-top">${deviceWarning}</div>` : ""}
+      <div class="system-grid section-gap-top">
+        ${metricCard("Sensores activos", String(activeDevices.length), `${inactiveDevices.length} desactivados`)}
+        ${metricCard("Vínculos activos", String(activeAssignments.length), "Entrenador y deportista")}
+        ${metricCard("Eventos de auditoría", String(audit.length), `${denied.length} rechazados`)}
+        ${metricCard("Último evento", last ? formatRelative(last.created_at) : "—", last ? formatDateTime(last.created_at) : "Sin eventos")}
+      </div>
+      <div class="grid-2 section-gap-top">
+        ${adminBarChart("Distribución de roles", roleRows)}
+        ${adminBarChart("Planes activos por tipo", planRows)}
+      </div>
+      <div class="section-gap-top">
+        ${adminBarChart("Sesiones por día (últimos 14 días)", activityRows)}
+      </div>
     </section>
 
     <section class="dash-section" id="admin-usuarios" data-dash-section>
@@ -2039,9 +2604,9 @@ function renderAdminDashboard() {
       ${sectionHead(
         "VÍNCULOS",
         "Quién puede ver a quién",
-        "Un vínculo permite que un entrenador o entrenador consulte las lecturas de un deportista. Puedes crear y desactivar vínculos."
+        "Un vínculo permite que un entrenador consulte las lecturas y sesiones de un deportista."
       )}
-      ${adminAssignmentForm(patients, members)}
+      ${adminAssignmentForm(athletes, coaches)}
       <div class="table-toolbar">
         <p class="dash-muted">${assignments.length} ${plural(assignments.length, "vínculo mostrado", "vínculos mostrados")}.</p>
         <label class="inline-check" for="assignments-include-inactive">
@@ -2050,6 +2615,27 @@ function renderAdminDashboard() {
         </label>
       </div>
       ${adminAssignmentsTable(assignments)}
+    </section>
+
+    <section class="dash-section" id="auditoria" data-dash-section>
+      ${sectionHead(
+        "AUDITORÍA",
+        "Actividad y accesos",
+        "Registro de solo lectura. Filtra por resultado o acción y exporta hasta 200 eventos."
+      )}
+      <div class="grid-4 section-gap-bottom">
+        ${metricCard("Eventos cargados", String(audit.length), `Límite: ${filters.limit}`)}
+        ${metricCard("Accesos rechazados", String(denied.length), denied.length === 1 ? "Un evento" : "Eventos")}
+        ${metricCard("Inicios correctos", String(successfulLogins.length), successfulLogins.length === 1 ? "Un inicio" : "Inicios")}
+        ${metricCard("Último evento", last ? formatRelative(last.created_at) : "—", last ? formatDateTime(last.created_at) : "Sin eventos")}
+      </div>
+      ${auditFiltersForm(filters)}
+      <div class="table-toolbar">
+        <p class="dash-muted">Mostrando ${audit.length} ${plural(audit.length, "evento", "eventos")} con los filtros actuales.</p>
+        <button type="button" class="dash-button dash-button-quiet" data-export-csv${audit.length ? "" : " disabled"}>Exportar CSV</button>
+      </div>
+      ${auditTable(audit)}
+      <p class="reference-note">La exportación incluye hasta 200 eventos con los filtros actuales. Los eventos de sesiones y planes también quedan registrados.</p>
     </section>`;
 }
 
@@ -2069,10 +2655,8 @@ function adminUserForm() {
       <div class="field">
         <label for="user-role">Rol</label>
         <select id="user-role" name="role">
-          <option value="patient">Deportista</option>
-          <option value="caregiver">Entrenador</option>
-          <option value="specialist">Entrenador</option>
-          <option value="administrador">Administrador</option>
+          <option value="athlete">Deportista</option>
+          <option value="coach">Entrenador</option>
           <option value="admin">Administrador</option>
         </select>
       </div>
@@ -2182,7 +2766,7 @@ function adminAssignmentForm(patients, members) {
   const hint = !patients.length
     ? "No hay deportistas activos. Crea cuentas nuevas en la sección «Usuarios»."
     : !members.length
-      ? "No hay entrenadores o entrenadors activos para vincular."
+      ? "No hay entrenadores activos para vincular."
       : "El tipo de vínculo se toma del rol de la persona seleccionada.";
 
   return `<form id="assignment-form" class="assignment-form">
@@ -2197,7 +2781,7 @@ function adminAssignmentForm(patients, members) {
         </select>
       </div>
       <div class="field">
-        <label for="assignment-member">Entrenador o entrenador</label>
+        <label for="assignment-member">Entrenador</label>
         <select id="assignment-member" name="member_id" required${disabled}>
           <option value="">Selecciona una persona</option>
           ${members.map(personOption).join("")}
@@ -2602,6 +3186,10 @@ const AUDIT_ACTION_LABELS = {
   DEVICE_UNPAIRED: "Dispositivo desvinculado",
   DEVICE_AUTH_FAILED: "Credencial de dispositivo rechazada",
   DEVICE_DATA_REJECTED: "Lectura de dispositivo rechazada",
+  APNEA_SESSION_CREATED: "Sesión de apnea registrada",
+  APNEA_SESSION_DELETED: "Sesión de apnea eliminada",
+  TRAINING_PLAN_CREATED: "Plan de entrenamiento asignado",
+  TRAINING_PLAN_ARCHIVED: "Plan de entrenamiento archivado",
 };
 
 async function loadAdministradorDashboard() {
@@ -2696,6 +3284,10 @@ function auditFiltersForm(filters) {
     ["DEVICE_UNPAIRED", "Dispositivo desvinculado"],
     ["DEVICE_AUTH_FAILED", "Credencial de dispositivo rechazada"],
     ["DEVICE_DATA_REJECTED", "Lectura de dispositivo rechazada"],
+    ["APNEA_SESSION_CREATED", "Sesión de apnea registrada"],
+    ["APNEA_SESSION_DELETED", "Sesión de apnea eliminada"],
+    ["TRAINING_PLAN_CREATED", "Plan asignado"],
+    ["TRAINING_PLAN_ARCHIVED", "Plan archivado"],
   ];
   const limitOptions = [25, 50, 100, 200];
 
@@ -2893,6 +3485,9 @@ function setLoginMessage(text, info = false) {
 }
 
 function loginErrorMessage(error) {
+  if (error?.offline) {
+    return "La app se abrió como archivo local. Usa iniciar.bat y entra a http://localhost:8000/.";
+  }
   if (error?.status === 401) {
     return "Correo o contraseña incorrectos. Revisa los datos e inténtalo de nuevo.";
   }
@@ -2933,14 +3528,47 @@ passwordToggle.addEventListener("click", () => {
   passwordToggle.setAttribute("aria-pressed", String(show));
 });
 
+async function demoLogin(email, roleName = "demo", trigger = null) {
+  if (window.location.protocol === "file:") {
+    showFileProtocolNotice();
+    setLoginMessage("Abre la app con iniciar.bat y entra a http://localhost:8000/ para usar la demo.");
+    return;
+  }
+
+  showLogin();
+  form.email.value = email;
+  form.password.value = "Practica4!";
+  setLoginMessage(`Entrando como ${roleName}…`, true);
+  loginButton.disabled = true;
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.dataset.originalText = trigger.textContent;
+    trigger.textContent = "Entrando…";
+  }
+
+  try {
+    await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password: "Practica4!" }),
+    });
+    const { data } = await apiFetch("/api/dashboard");
+    setLoginMessage("");
+    await showDashboard(data);
+  } catch (error) {
+    setLoginMessage(loginErrorMessage(error));
+  } finally {
+    loginButton.disabled = false;
+    if (trigger) {
+      trigger.disabled = false;
+      trigger.textContent = trigger.dataset.originalText ?? roleName;
+    }
+  }
+}
+
 document.querySelectorAll("[data-email]").forEach((button) => {
   button.addEventListener("click", (event) => {
     event.preventDefault();
-    showLogin();
-    form.email.value = button.dataset.email;
-    form.password.value = "Practica4!";
-    setLoginMessage(`Rol ${button.dataset.roleName} cargado. Presiona «Entrar al sistema».`, true);
-    loginButton.focus();
+    demoLogin(button.dataset.email, button.dataset.roleName, button);
   });
 });
 
@@ -3048,7 +3676,7 @@ document.addEventListener("change", (event) => {
     const dialog = document.querySelector("#patient-dialog");
     if (dialog?.open && dashState.detailPatientId) {
       openPatientDetail(dashState.detailPatientId);
-    } else if (dashState.role === "patient") {
+    } else if (dashState.role === "athlete" || dashState.role === "patient") {
       loadRoleDashboard();
     }
     return;
@@ -3136,6 +3764,7 @@ document.addEventListener("click", (event) => {
   if (closeButton) {
     event.preventDefault();
     const dialog = closeButton.closest("dialog");
+    if (dialog?.id === "session-dialog") stopSessionTimer();
     if (dialog?.id === "confirm-dialog") resolveConfirm(false);
     else closeDialog(dialog);
     return;
@@ -3301,14 +3930,20 @@ document.addEventListener("click", (event) => {
 document.querySelectorAll("dialog").forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target !== dialog) return;
-    if (dialog.id === "confirm-dialog") resolveConfirm(false);
-    else closeDialog(dialog);
+    if (dialog.id === "confirm-dialog") {
+      resolveConfirm(false);
+    } else {
+      if (dialog.id === "session-dialog") stopSessionTimer();
+      closeDialog(dialog);
+    }
   });
 
   dialog.addEventListener("cancel", (event) => {
     if (dialog.id === "confirm-dialog") {
       event.preventDefault();
       resolveConfirm(false);
+    } else if (dialog.id === "session-dialog") {
+      stopSessionTimer();
     }
   });
 });
@@ -3321,9 +3956,563 @@ loadPrefs();
 applyPrefs();
 
 (async function init() {
+  if (window.location.protocol === "file:") {
+    showFileProtocolNotice();
+    routeFromHash({ focus: false });
+    return;
+  }
   const restored = await loadSession();
   if (!restored) routeFromHash({ focus: false });
 })();
+// ============================================================================
+// ENTRENAMIENTO GUIADO — SESIONES DE APNEA
+// ============================================================================
+
+function sessionNumber(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function sessionCyclesTotal() {
+  return 12;
+}
+
+function sessionSelectedBreathingType() {
+  return document.querySelector("#breath-type-select")?.value || "box";
+}
+
+function sessionSafetyHtml() {
+  return `<div class="session-safety"><strong>Seguridad primero.</strong> Practica en seco y con una persona atenta. Detén la sesión ante mareo, hormigueo o visión borrosa. Nunca hagas retención en el agua sin supervisión.</div>`;
+}
+
+function openSessionDialog(kind, options = {}) {
+  const allowed = ["static", "co2", "o2", "breathing"];
+  const safeKind = allowed.includes(kind) ? kind : "static";
+  const maxHold = computePBs([], [], dashState.sessions).maxBreathHold || 90;
+  dashState.sessionRunner = {
+    kind: safeKind,
+    planId: options.planId || null,
+    maxHold: options.maxHold || maxHold,
+    rounds: options.rounds || 8,
+    mode: options.prefillSeconds ? "form" : "ready",
+    phase: "ready",
+    round: 1,
+    remaining: 0,
+    running: false,
+    timer: null,
+    startedAt: null,
+    elapsed: options.prefillSeconds || 0,
+    contractions: 0,
+    roundsCompleted: 0,
+    prefillSeconds: options.prefillSeconds || null,
+  };
+  document.querySelector("#session-dialog-kicker").textContent = sessionKindLabel(safeKind).toUpperCase();
+  document.querySelector("#session-dialog-title").textContent = safeKind === "static" ? "Apnea libre" : sessionKindLabel(safeKind);
+  renderSessionRunner();
+  openDialog("#session-dialog");
+}
+
+function renderSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  const body = document.querySelector("#session-dialog-body");
+  const footer = document.querySelector("#session-dialog-footer");
+  footer.innerHTML = "";
+
+  if (runner.mode === "form") {
+    renderSessionForm(body, runner);
+    return;
+  }
+
+  const phaseLabel = runner.phase === "hold"
+    ? "APNEA"
+    : runner.phase === "rest"
+      ? "DESCANSO"
+      : runner.phase === "inhale"
+        ? "INHALA"
+        : runner.phase === "exhale"
+          ? "EXHALA"
+          : runner.phase === "hold_breath"
+            ? "MANTÉN"
+            : "PREPARADO";
+
+  const phaseClass = runner.phase === "hold" ? "is-hold" : runner.phase === "rest" ? "is-rest" : "is-prepare";
+  const roundsHtml = runner.kind === "static"
+    ? ""
+    : Array.from({ length: runner.rounds }, (_, index) => {
+        const number = index + 1;
+        const current = number === runner.round && runner.running;
+        return `<span class="session-round ${number < runner.round ? "is-done" : current ? "is-current" : ""}">${number}</span>`;
+      }).join("");
+
+  const timeText = runner.kind === "static"
+    ? formatDuration(runner.elapsed)
+    : formatDuration(Math.ceil(runner.remaining));
+
+  const progress = runner.kind === "co2" || runner.kind === "o2"
+    ? Math.min(100, Math.round(((runner.round - 1) / runner.rounds) * 100))
+    : runner.kind === "breathing"
+      ? Math.min(100, Math.round((runner.elapsed / (sessionCyclesTotal() * 16)) * 100))
+      : 0;
+
+  body.innerHTML = `
+    <div class="session-runner">
+      <div class="session-runner-top">
+        <span class="session-chip"><span class="semaphore-dot"></span>${escapeHtml(sessionKindLabel(runner.kind))}</span>
+        <span class="session-chip">Ronda ${runner.round}${runner.kind === "static" || runner.kind === "breathing" ? "" : ` / ${runner.rounds}`}</span>
+      </div>
+      <p class="session-phase ${phaseClass}">${phaseLabel}</p>
+      <div class="session-timer ${phaseClass}" id="session-timer">${timeText}</div>
+      <p class="session-next">${
+        runner.kind === "co2"
+          ? "Retención fija · descanso decreciente"
+          : runner.kind === "o2"
+            ? "Retención progresiva · descanso fijo"
+            : runner.kind === "breathing"
+              ? `${sessionCyclesTotal()} ciclos · ${breathingCycles(sessionSelectedBreathingType()).map((step) => `${step.name} ${step.s}s`).join(" · ")}`
+              : "Cronómetro libre. Guarda al terminar."
+      }</p>
+      <div class="session-progress"><span id="session-progress-bar" style="width: ${progress}%;"></span></div>
+      ${roundsHtml ? `<div class="session-rounds">${roundsHtml}</div>` : ""}
+      ${runner.kind === "co2" || runner.kind === "o2" || runner.kind === "static" ? `<button type="button" class="session-contraction" data-session-action="contraction">Sentí una contracción <strong>${runner.contractions}</strong></button>` : ""}
+      ${sessionSafetyHtml()}
+      <div class="session-actions">
+        ${runner.mode === "ready"
+          ? `<button type="button" class="tt-btn is-primary" data-session-action="start">Comenzar</button>`
+          : `<button type="button" class="tt-btn is-primary" data-session-action="${runner.running ? "pause" : "resume"}">${runner.running ? "Pausar" : "Reanudar"}</button>`}
+        <button type="button" class="tt-btn is-quiet" data-session-action="finish">Terminar y guardar</button>
+      </div>
+    </div>`;
+}
+
+function renderSessionForm(body, runner) {
+  const duration = runner.prefillSeconds || Math.round(runner.elapsed);
+  const maxHold = runner.kind === "static" ? duration : runner.maxHold;
+  const rounds = runner.kind === "static" ? 1 : runner.rounds;
+  const completed = runner.kind === "static"
+    ? (duration > 0 ? 1 : 0)
+    : runner.kind === "breathing"
+      ? Math.max(0, Math.floor(runner.elapsed / 16))
+      : Math.max(0, Math.min(runner.rounds, runner.round - (runner.running ? 1 : 0)));
+
+  body.innerHTML = `
+    <form id="session-form" class="session-form">
+      <div class="session-summary">
+        <div><span>Tipo</span><strong>${escapeHtml(sessionKindLabel(runner.kind))}</strong></div>
+        <div><span>Duración</span><strong>${formatDuration(duration)}</strong></div>
+        <div><span>Rondas</span><strong>${completed} / ${rounds}</strong></div>
+        <div><span>Contracciones</span><strong>${runner.contractions}</strong></div>
+      </div>
+      <input type="hidden" name="kind" value="${escapeHtml(runner.kind)}" />
+      <input type="hidden" name="duration_s" value="${Math.round(duration)}" />
+      <input type="hidden" name="rounds_total" value="${rounds}" />
+      <input type="hidden" name="contractions" value="${runner.contractions}" />
+      <div class="field">
+        <label for="session-hold">Mejor retención (segundos)</label>
+        <input id="session-hold" name="max_hold_s" type="number" min="0" max="1200" value="${Math.round(maxHold) || ""}" />
+      </div>
+      <div class="field">
+        <label for="session-rounds">Rondas completadas</label>
+        <input id="session-rounds" name="rounds_completed" type="number" min="0" max="50" value="${completed}" />
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="session-spo2">SpO₂ mínima (%)</label>
+          <input id="session-spo2" name="spo2_min" type="number" min="0" max="100" placeholder="Opcional" />
+        </div>
+        <div class="field">
+          <label for="session-hr">Pulso promedio (lpm)</label>
+          <input id="session-hr" name="heart_rate_avg" type="number" min="20" max="300" placeholder="Opcional" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="session-notes">Notas</label>
+        <textarea id="session-notes" name="notes" maxlength="500" placeholder="¿Cómo te sentiste? ¿Qué ajustarías la próxima vez?"></textarea>
+      </div>
+      ${sessionSafetyHtml()}
+      <div class="session-actions">
+        <button type="submit" class="tt-btn is-primary">Guardar sesión</button>
+        <button type="button" class="tt-btn is-quiet" data-session-action="discard">Descartar</button>
+      </div>
+    </form>`;
+}
+
+function stopSessionTimer() {
+  const runner = dashState.sessionRunner;
+  if (runner?.timer) window.clearInterval(runner.timer);
+  if (runner) runner.timer = null;
+}
+
+function sessionHoldFor(runner, round) {
+  if (runner.kind === "co2") return co2Table(runner.maxHold).hold;
+  if (runner.kind === "o2") return o2Table(runner.maxHold).base + (round - 1) * 5;
+  return 0;
+}
+
+function sessionRestFor(runner, round) {
+  if (runner.kind === "co2") return Math.max(30, 90 - (round - 1) * 10);
+  return 120;
+}
+
+function startSessionPhase(runner, phase, seconds) {
+  runner.phase = phase;
+  runner.remaining = seconds;
+  runner.phaseSeconds = seconds;
+  runner.running = true;
+  runner.phaseStartedAt = Date.now();
+  if (!runner.timer) {
+    runner.timer = window.setInterval(() => tickSessionRunner(), 250);
+  }
+  renderSessionRunner();
+}
+
+function beginSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  runner.startedAt = Date.now();
+  runner.elapsed = 0;
+  runner.contractions = 0;
+  runner.round = 1;
+  runner.roundsCompleted = 0;
+
+  if (runner.kind === "static") {
+    runner.mode = "running";
+    startSessionPhase(runner, "hold", 0);
+  } else if (runner.kind === "breathing") {
+    runner.mode = "running";
+    startSessionPhase(runner, "inhale", 4);
+  } else {
+    runner.mode = "running";
+    startSessionPhase(runner, "hold", sessionHoldFor(runner, 1));
+  }
+}
+
+function tickSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner || !runner.running) return;
+
+  if (runner.kind === "static") {
+    runner.elapsed = (Date.now() - runner.startedAt) / 1000;
+    const time = document.querySelector("#session-timer");
+    if (time) time.textContent = formatDuration(runner.elapsed);
+    return;
+  }
+
+  runner.elapsed = (Date.now() - runner.startedAt) / 1000;
+  runner.remaining = Math.max(0, runner.remaining - 0.25);
+
+  if (runner.kind === "breathing") {
+    const steps = breathingCycles(sessionSelectedBreathingType());
+    const cycle = steps.reduce((total, step) => total + step.s, 0);
+    const total = cycle * sessionCyclesTotal();
+    if (runner.elapsed >= total) {
+      runner.roundsCompleted = sessionCyclesTotal();
+      finishSessionRunner();
+      return;
+    }
+    const position = runner.elapsed % cycle;
+    let accumulated = 0;
+    let step = steps[0];
+    for (const candidate of steps) {
+      if (position < accumulated + candidate.s) {
+        step = candidate;
+        break;
+      }
+      accumulated += candidate.s;
+    }
+    const phase = step.name.toLowerCase().includes("inhalar")
+      ? "inhale"
+      : step.name.toLowerCase().includes("exhalar")
+        ? "exhale"
+        : step.name.toLowerCase().includes("mantener")
+          ? runner.phase === "inhale" || runner.phase === "hold_breath" ? "hold_breath" : "hold_breath"
+          : "inhale";
+    runner.phase = phase;
+    runner.remaining = accumulated + step.s - position;
+    runner.round = Math.min(sessionCyclesTotal(), Math.floor(runner.elapsed / cycle) + 1);
+    updateSessionRunningUI();
+    return;
+  }
+
+  if (runner.remaining > 0) {
+    updateSessionRunningUI();
+    return;
+  }
+
+  if (runner.phase === "hold") {
+    startSessionPhase(runner, "rest", sessionRestFor(runner, runner.round));
+    return;
+  }
+
+  if (runner.phase === "rest") {
+    runner.roundsCompleted = runner.round;
+    runner.round += 1;
+    if (runner.round > runner.rounds) {
+      finishSessionRunner();
+      return;
+    }
+    startSessionPhase(runner, "hold", sessionHoldFor(runner, runner.round));
+  }
+}
+
+function updateSessionRunningUI() {
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  const time = document.querySelector("#session-timer");
+  if (time) time.textContent = formatDuration(Math.ceil(runner.remaining));
+  const bar = document.querySelector("#session-progress-bar");
+  if (bar && runner.rounds) {
+    bar.style.width = `${Math.min(100, Math.round(((runner.round - 1) / runner.rounds) * 100))}%`;
+  }
+  const phase = document.querySelector(".session-phase");
+  if (phase) {
+    const label = runner.phase === "hold" ? "APNEA" : runner.phase === "rest" ? "DESCANSO" : runner.phase === "inhale" ? "INHALA" : runner.phase === "exhale" ? "EXHALA" : "MANTÉN";
+    phase.textContent = label;
+    phase.className = `session-phase ${runner.phase === "hold" ? "is-hold" : runner.phase === "rest" ? "is-rest" : "is-prepare"}`;
+  }
+}
+
+function finishSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  stopSessionTimer();
+  runner.running = false;
+  if (runner.kind === "static") {
+    runner.elapsed = Math.max(runner.elapsed, currentApneaElapsed() / 1000);
+    runner.maxHold = Math.round(runner.elapsed);
+  }
+  runner.mode = "form";
+  renderSessionRunner();
+}
+
+function pauseSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner || !runner.running) return;
+  if (runner.kind === "static") {
+    runner.elapsed = (Date.now() - runner.startedAt) / 1000;
+    pauseApneaTimer();
+  }
+  runner.running = false;
+  stopSessionTimer();
+  renderSessionRunner();
+}
+
+function resumeSessionRunner() {
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  runner.running = true;
+  if (runner.kind === "static") {
+    runner.startedAt = Date.now() - runner.elapsed * 1000;
+  } else {
+    runner.phaseStartedAt = Date.now();
+  }
+  runner.timer = window.setInterval(() => tickSessionRunner(), 250);
+  renderSessionRunner();
+}
+
+function discardSessionRunner() {
+  stopSessionTimer();
+  dashState.sessionRunner = null;
+  closeDialog("#session-dialog");
+}
+
+async function submitSessionForm(event) {
+  event.preventDefault();
+  const runner = dashState.sessionRunner;
+  if (!runner) return;
+  const formData = new FormData(event.target);
+  const payload = {
+    kind: runner.kind,
+    duration_s: Number(formData.get("duration_s")) || Math.round(runner.elapsed),
+    max_hold_s: sessionNumber(formData.get("max_hold_s")),
+    rounds_completed: Number(formData.get("rounds_completed")) || 0,
+    rounds_total: Number(formData.get("rounds_total")) || 1,
+    contractions: Number(formData.get("contractions")) || 0,
+    spo2_min: sessionNumber(formData.get("spo2_min")),
+    heart_rate_avg: sessionNumber(formData.get("heart_rate_avg")),
+    notes: String(formData.get("notes") || "").trim() || null,
+    source: "manual",
+  };
+
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Guardando…";
+  }
+  try {
+    await apiFetch("/api/sessions", { method: "POST", body: JSON.stringify(payload) });
+    discardSessionRunner();
+    resetApneaTimer();
+    showToast("Sesión guardada. Tu entrenador ya puede verla.");
+    await loadRoleDashboard();
+  } catch (error) {
+    showToast(friendlyError(error, "No pudimos guardar la sesión."), "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Guardar sesión";
+    }
+  }
+}
+
+function saveInlineApnea() {
+  const seconds = Math.round(currentApneaElapsed() / 1000);
+  if (seconds < 3) {
+    showToast("Inicia el cronómetro y mantén la apnea antes de guardar.", "error");
+    return;
+  }
+  pauseApneaTimer();
+  openSessionDialog("static", { prefillSeconds: seconds, maxHold: seconds });
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const startButton = target.closest("[data-start-session]");
+  if (startButton) {
+    event.preventDefault();
+    const planId = Number(startButton.dataset.planId);
+    const plan = dashState.plans.find((item) => item.id === planId);
+    openSessionDialog(startButton.dataset.startSession, {
+      planId: planId || null,
+      rounds: plan?.rounds || 8,
+      maxHold: plan?.target_value || undefined,
+    });
+    return;
+  }
+
+  if (target.closest("[data-save-apnea]")) {
+    event.preventDefault();
+    saveInlineApnea();
+    return;
+  }
+
+  const action = target.closest("[data-session-action]")?.dataset.sessionAction;
+  if (!action) return;
+  event.preventDefault();
+  if (action === "start") beginSessionRunner();
+  if (action === "pause") pauseSessionRunner();
+  if (action === "resume") resumeSessionRunner();
+  if (action === "finish") finishSessionRunner();
+  if (action === "discard") discardSessionRunner();
+  if (action === "contraction" && dashState.sessionRunner) {
+    dashState.sessionRunner.contractions += 1;
+    renderSessionRunner();
+  }
+});
+
+document.addEventListener("submit", (event) => {
+  if (event.target.id === "session-form") submitSessionForm(event);
+});
+
+document.addEventListener("change", (event) => {
+  if (event.target.id === "breath-type-select" && breathRunning) {
+    breathStepIndex = 0;
+    breathStepStart = Date.now();
+    breathUpdateUI();
+  }
+});
+
+// ============================================================================
+// PLANES DEL ENTRENADOR — FILTRO, ASIGNACIÓN Y ARCHIVO
+// ============================================================================
+
+document.addEventListener("input", (event) => {
+  if (event.target.id !== "roster-filter") return;
+  dashState.rosterFilter = event.target.value;
+  const section = document.querySelector("#deportistas");
+  const current = section?.querySelector(".table-wrap, .roster-empty");
+  if (!section || !current) return;
+  const template = document.createElement("template");
+  template.innerHTML = coachRoster(dashState.carePatients).trim();
+  const replacement = template.content.firstElementChild;
+  if (replacement) current.replaceWith(replacement);
+});
+
+document.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+
+  const assignButton = target.closest("[data-assign-plan]");
+  if (assignButton) {
+    event.preventDefault();
+    const patientId = assignButton.dataset.assignPlan;
+    const select = document.querySelector("#plan-patient");
+    if (select) {
+      select.value = patientId;
+      document.querySelector("#planes")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      select.focus({ preventScroll: true });
+    }
+    return;
+  }
+
+  const archiveButton = target.closest("[data-archive-plan]");
+  if (!archiveButton) return;
+  event.preventDefault();
+  const plan = dashState.plans.find((item) => item.id === Number(archiveButton.dataset.archivePlan));
+  const confirmed = await askConfirm({
+    title: "Archivar plan",
+    message: `El plan${plan?.patient_name ? ` de ${plan.patient_name}` : ""} dejará de aparecer como activo. Las sesiones ya registradas se conservan.`,
+    confirmLabel: "Archivar",
+    danger: true,
+  });
+  if (!confirmed) return;
+  try {
+    await apiFetch(`/api/plans/${archiveButton.dataset.archivePlan}`, { method: "DELETE" });
+    showToast("Plan archivado.");
+    await loadRoleDashboard();
+  } catch (error) {
+    showToast(friendlyError(error, "No pudimos archivar el plan."), "error");
+  }
+});
+
+document.addEventListener("submit", async (event) => {
+  if (event.target.id !== "plan-form") return;
+  event.preventDefault();
+  const formData = new FormData(event.target);
+  const patientId = Number(formData.get("patient_id"));
+  const kind = String(formData.get("kind") || "co2");
+  const rounds = Number(formData.get("rounds")) || 8;
+  const targetValue = formData.get("target_value") ? Number(formData.get("target_value")) : null;
+  const dueDate = formData.get("due_date") ? `${formData.get("due_date")}T12:00:00` : null;
+  const notes = String(formData.get("notes") || "").trim() || null;
+
+  if (!patientId) {
+    showToast("Elige un deportista para asignar el plan.", "error");
+    return;
+  }
+
+  const button = event.target.querySelector('button[type="submit"]');
+  const original = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Asignando…";
+  }
+  try {
+    await apiFetch("/api/plans", {
+      method: "POST",
+      body: JSON.stringify({
+        patient_id: patientId,
+        kind,
+        target_value: targetValue,
+        rounds,
+        notes,
+        due_date: dueDate,
+      }),
+    });
+    showToast("Plan asignado. El deportista ya puede verlo.");
+    await loadRoleDashboard();
+  } catch (error) {
+    showToast(friendlyError(error, "No pudimos asignar el plan."), "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+});
+
+
 // --- Cronómetro de apnea (calmado, sin alertas) ---
 let apneaTimerInterval = null;
 let apneaTimerStart = 0;
@@ -3407,7 +4596,8 @@ let breathStepStart = 0;
 const BREATH_TYPE = "box"; // se puede cambiar a "4-7-8" o "diafragmatica"
 
 function breathSteps() {
-  return breathingCycles(BREATH_TYPE);
+  const selected = document.querySelector("#breath-type-select")?.value;
+  return breathingCycles(selected || BREATH_TYPE);
 }
 
 function breathUpdateUI() {
@@ -3459,3 +4649,132 @@ document.addEventListener("click", (event) => {
   if (target.id === "breath-start") breathStart();
   if (target.id === "breath-pause") breathPause();
 });
+
+// ============================================================================
+// BIENVENIDA — DEMO INTERACTIVA SIN INICIAR SESIÓN
+// ============================================================================
+
+const WELCOME_BEST_KEY = "deepmind.welcome.hold.best";
+const welcomeHold = { running: false, elapsed: 0, startedAt: 0, timer: null };
+
+function welcomeHoldElapsed() {
+  return welcomeHold.elapsed + (welcomeHold.running ? Date.now() - welcomeHold.startedAt : 0);
+}
+
+function welcomeHoldRender() {
+  const timer = document.querySelector("#welcome-hold-timer");
+  const status = document.querySelector("#welcome-hold-status");
+  if (timer) timer.textContent = formatApneaTimer(welcomeHoldElapsed());
+  if (status) status.textContent = welcomeHold.running ? "En curso" : welcomeHoldElapsed() > 0 ? "En pausa" : "Listo";
+}
+
+function welcomeHoldSaveBest() {
+  const seconds = Math.floor(welcomeHoldElapsed() / 1000);
+  const previous = Number(localStorage.getItem(WELCOME_BEST_KEY) || 0);
+  if (seconds > previous) {
+    localStorage.setItem(WELCOME_BEST_KEY, String(seconds));
+    const best = document.querySelector("#welcome-hold-best");
+    if (best) best.textContent = formatApneaTimer(seconds * 1000);
+    showToast("Nuevo récord guardado en este navegador.");
+  }
+}
+
+function welcomeHoldStart() {
+  if (welcomeHold.running) return;
+  welcomeHold.running = true;
+  welcomeHold.startedAt = Date.now();
+  welcomeHold.timer = window.setInterval(welcomeHoldRender, 200);
+  welcomeHoldRender();
+}
+
+function welcomeHoldPause() {
+  if (!welcomeHold.running) {
+    welcomeHoldSaveBest();
+    return;
+  }
+  welcomeHold.elapsed = welcomeHoldElapsed();
+  welcomeHold.running = false;
+  window.clearInterval(welcomeHold.timer);
+  welcomeHold.timer = null;
+  welcomeHoldSaveBest();
+  welcomeHoldRender();
+}
+
+function welcomeHoldReset() {
+  welcomeHoldSaveBest();
+  welcomeHold.running = false;
+  welcomeHold.elapsed = 0;
+  window.clearInterval(welcomeHold.timer);
+  welcomeHold.timer = null;
+  welcomeHoldRender();
+}
+
+const WELCOME_BREATH_STEPS = [
+  { name: "Inhala", s: 4, scale: 1.22 },
+  { name: "Mantén", s: 4, scale: 1.22 },
+  { name: "Exhala", s: 4, scale: 0.86 },
+  { name: "Mantén", s: 4, scale: 0.86 },
+];
+const welcomeBreath = { running: false, index: 0, stepStart: 0, cycles: 0, timer: null };
+
+function welcomeBreathRender() {
+  const step = WELCOME_BREATH_STEPS[welcomeBreath.index];
+  const label = document.querySelector("#welcome-breath-label");
+  const count = document.querySelector("#welcome-breath-count");
+  const phase = document.querySelector("#welcome-breath-phase");
+  const cycles = document.querySelector("#welcome-breath-cycles");
+  const circle = document.querySelector("#welcome-breath-circle");
+  if (!step) return;
+  const remaining = Math.max(1, Math.ceil(step.s - (Date.now() - welcomeBreath.stepStart) / 1000));
+  if (label) label.textContent = step.name;
+  if (count) count.textContent = String(remaining);
+  if (phase) phase.textContent = step.name;
+  if (cycles) cycles.textContent = String(welcomeBreath.cycles);
+  if (circle) circle.style.transform = `scale(${step.scale})`;
+}
+
+function welcomeBreathStart() {
+  if (welcomeBreath.running) return;
+  welcomeBreath.running = true;
+  welcomeBreath.index = 0;
+  welcomeBreath.cycles = 0;
+  welcomeBreath.stepStart = Date.now();
+  welcomeBreathRender();
+  welcomeBreath.timer = window.setInterval(() => {
+    const step = WELCOME_BREATH_STEPS[welcomeBreath.index];
+    if (!step) return;
+    if (Date.now() - welcomeBreath.stepStart >= step.s * 1000) {
+      welcomeBreath.index = (welcomeBreath.index + 1) % WELCOME_BREATH_STEPS.length;
+      if (welcomeBreath.index === 0) welcomeBreath.cycles += 1;
+      welcomeBreath.stepStart = Date.now();
+    }
+    welcomeBreathRender();
+  }, 200);
+}
+
+function welcomeBreathStop() {
+  welcomeBreath.running = false;
+  window.clearInterval(welcomeBreath.timer);
+  welcomeBreath.timer = null;
+  const label = document.querySelector("#welcome-breath-label");
+  const circle = document.querySelector("#welcome-breath-circle");
+  if (label) label.textContent = "Listo";
+  if (circle) circle.style.transform = "scale(1)";
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.id === "welcome-hold-start") welcomeHoldStart();
+  if (target.id === "welcome-hold-pause") welcomeHoldPause();
+  if (target.id === "welcome-hold-reset") welcomeHoldReset();
+  if (target.id === "welcome-breath-start") welcomeBreathStart();
+  if (target.id === "welcome-breath-stop") welcomeBreathStop();
+});
+
+(function initWelcomeDemo() {
+  const best = Number(localStorage.getItem(WELCOME_BEST_KEY) || 0);
+  const element = document.querySelector("#welcome-hold-best");
+  if (best > 0 && element) element.textContent = formatApneaTimer(best * 1000);
+})();
+

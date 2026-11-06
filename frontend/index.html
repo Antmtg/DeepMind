@@ -166,46 +166,48 @@
         <section id="apnea-test" class="section" aria-labelledby="apnea-test-title">
           <div class="section-heading">
             <p class="eyebrow">ENTRENAMIENTO DE APNEA</p>
-            <h2 id="apnea-test-title">Prueba tu retención máxima.</h2>
+            <h2 id="apnea-test-title">Prueba tu retención aquí mismo.</h2>
             <p>
-              Una sola retención guiada establece tu línea base. A partir de ahí se generan
-              tus tablas de CO₂ y O₂ personalizadas, como en las apps de buceo libre.
+              Dos ejercicios funcionan sin crear cuenta: un cronómetro de retención y una
+              guía de respiración. Al entrar, tus marcas se guardan y generan tablas CO₂/O₂.
             </p>
           </div>
-          <div class="demo-panel" style="grid-template-columns: 1fr 0.95fr;">
-            <div class="demo-copy" style="padding: 38px;">
-              <h3 style="font: 800 24px 'Space Grotesk'; color: var(--white); margin: 0 0 14px; letter-spacing: -0.03em;">Test de apnea estática</h3>
-              <p style="color: var(--ink-dim); font-size: 14px; line-height: 1.65; margin: 0 0 26px;">
-                Respira con calma, apaga el aire y aguantá lo que puedas. El semáforo de oxígeno
-                te avisará si tu SpO₂ baja. Nunca entrenes solo en el agua.
-              </p>
-              <div class="demo-roles" style="margin: 26px 0;">
-                <button class="demo-role" type="button" data-email="deportista.deepmind.demo@gmail.com" data-role-name="Deportista">Iniciar test (Deportista)</button>
-                <button class="btn btn-outline" style="margin-left: 10px;">Ver cómo funciona</button>
+
+          <div class="welcome-demo-grid">
+            <article class="welcome-demo-card">
+              <h3>Apnea estática</h3>
+              <p>Inicia el cronómetro cuando estés listo. El récord se guarda en este navegador.</p>
+              <div class="demo-timer-value" id="welcome-hold-timer">00:00</div>
+              <div class="demo-timer-actions">
+                <button type="button" class="btn btn-primary" id="welcome-hold-start">Iniciar</button>
+                <button type="button" class="btn btn-outline" id="welcome-hold-pause">Pausar</button>
+                <button type="button" class="btn btn-outline" id="welcome-hold-reset">Reiniciar</button>
               </div>
-            </div>
-            <aside class="demo-aside" style="padding: 38px;">
-              <span class="demo-aside-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h3m-3 0v3m0-13a9 9 0 1 1-1 18" />
-                </svg>
-              </span>
-              <h3 style="font: 800 22px 'Space Grotesk'; color: var(--white); margin: 22px 0 12px;">Qué mides</h3>
-              <ul style="list-style: none; margin: 0; padding: 0; display: grid; gap: 9px;">
-                <li style="display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; color: var(--white);">
-                  <span style="width: 20px; height: 20px; border-radius: 50%; display: grid; place-content: center; background: var(--cyan); color: var(--black); font-size: 11px; font-weight: 800;">✓</span>
-                  Tiempo máximo de retención
-                </li>
-                <li style="display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; color: var(--white);">
-                  <span style="width: 20px; height: 20px; border-radius: 50%; display: grid; place-content: center; background: var(--cyan); color: var(--black); font-size: 11px; font-weight: 800;">✓</span>
-                  Tablas CO₂ y O₂ personalizadas
-                </li>
-                <li style="display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; color: var(--white);">
-                  <span style="width: 20px; height: 20px; border-radius: 50%; display: grid; place-content: center; background: var(--cyan); color: var(--black); font-size: 11px; font-weight: 800;">✓</span>
-                  Racha de entrenamiento
-                </li>
-              </ul>
-            </aside>
+              <div class="demo-stat-row">
+                <div class="demo-stat"><strong id="welcome-hold-best">—</strong><span>Tu récord</span></div>
+                <div class="demo-stat"><strong id="welcome-hold-status">Listo</strong><span>Estado</span></div>
+              </div>
+              <p class="demo-note" style="margin-top: 16px;">Practica en seco y con alguien atento. Nunca en el agua sin supervisión.</p>
+            </article>
+
+            <article class="welcome-demo-card">
+              <h3>Respiración 4-4-4-4</h3>
+              <p>Box breathing para bajar pulsaciones antes de una apnea o recuperar después.</p>
+              <div class="demo-breath-wrap">
+                <div class="demo-breath-circle" id="welcome-breath-circle">
+                  <span id="welcome-breath-label">Listo</span>
+                  <strong id="welcome-breath-count">4</strong>
+                </div>
+              </div>
+              <div class="demo-timer-actions">
+                <button type="button" class="btn btn-primary" id="welcome-breath-start">Comenzar</button>
+                <button type="button" class="btn btn-outline" id="welcome-breath-stop">Detener</button>
+              </div>
+              <div class="demo-stat-row">
+                <div class="demo-stat"><strong id="welcome-breath-cycles">0</strong><span>Ciclos</span></div>
+                <div class="demo-stat"><strong id="welcome-breath-phase">—</strong><span>Fase</span></div>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -320,8 +322,8 @@
             <p class="eyebrow">PARA QUIÉN</p>
             <h2 id="roles-title">Un panel para cada rol.</h2>
             <p>
-              Cinco roles, una misma información desde el fondo marino. Cada uno con el
-              acceso que necesita.
+              Tres roles reales y una vista de auditoría, con la misma información del fondo
+              marino. Cada uno con el acceso que necesita.
             </p>
           </div>
 
@@ -334,7 +336,7 @@
                 </svg>
               </span>
               <h3>Deportista</h3>
-              <p>Consulta tus signos vitales, la tendencia reciente y las alertas de apnea de tus dispositivos.</p>
+              <p>Mide SpO₂ y pulso, cronometra apneas, corre tablas CO₂/O₂ y sigue sus récords, racha y plan del entrenador.</p>
             </article>
 
             <article class="role-card">
@@ -344,19 +346,7 @@
                 </svg>
               </span>
               <h3>Entrenador</h3>
-              <p>Acompaña a la persona a tu cargo y revisa sus lecturas sin acceder a la administración.</p>
-            </article>
-
-            <article class="role-card">
-              <span class="role-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 3v6a6 6 0 0 0 12 0V3" />
-                  <path d="M6 3H4m14 0h2M12 15v3a3 3 0 0 0 3 3h1" />
-                  <circle cx="19" cy="21" r="2" />
-                </svg>
-              </span>
-              <h3>Entrenador</h3>
-              <p>Revisa las mediciones y los dispositivos que tenga asignados, según los permisos configurados.</p>
+              <p>Ve la plantilla asignada, los récords y sesiones de cada deportista, y le asigna tablas de entrenamiento.</p>
             </article>
 
             <article class="role-card">
@@ -367,7 +357,7 @@
                 </svg>
               </span>
               <h3>Administrador</h3>
-              <p>Gestiona usuarios, dispositivos y la configuración del sistema.</p>
+              <p>Gestiona cuentas, sensores y vínculos, y revisa la salud del sistema y la actividad reciente.</p>
             </article>
 
             <article class="role-card">
@@ -377,8 +367,8 @@
                   <path d="M9 12h6M9 16h4" />
                 </svg>
               </span>
-              <h3>Administrador</h3>
-              <p>Revisa accesos y cambios para verificar que la información se usó correctamente.</p>
+              <h3>Auditoría</h3>
+              <p>Dentro del panel del administrador: accesos, cambios y exportación CSV para revisar la trazabilidad.</p>
             </article>
           </div>
         </section>
@@ -450,6 +440,69 @@
           </div>
         </section>
 
+        <section id="caracteristicas" class="section" aria-labelledby="features-title">
+          <div class="section-heading">
+            <p class="eyebrow">LO QUE PUEDES HACER</p>
+            <h2 id="features-title">Una app de apnea, no un monitor genérico.</h2>
+            <p>
+              Sensores, sesiones, tablas y planes en el mismo lugar. Inspirada en Strava,
+              MySwimPro, Fathom y las apps de buceo libre.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">◆</span>
+              <h3>Sensores ESP32</h3>
+              <p>SpO₂ y pulso desde hasta tres dispositivos, con estado de conexión y origen del dato.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">⏱</span>
+              <h3>Sesiones guiadas</h3>
+              <p>Cronómetro de apnea, tablas CO₂/O₂ y respiración. Cada sesión se guarda con rondas y contracciones.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">◎</span>
+              <h3>Progreso tipo Strava</h3>
+              <p>Récords personales, racha, calendario de actividad, carga aguda/crónica y feed de entrenamiento.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">✓</span>
+              <h3>Planes del entrenador</h3>
+              <p>El entrenador asigna tablas con fecha y notas; el deportista las ve y las empieza desde su panel.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">❤</span>
+              <h3>Zonas y recuperación</h3>
+              <p>Pulso promedio por sesión, zonas de frecuencia cardíaca y avisos de carga elevada.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-icon" aria-hidden="true">▣</span>
+              <h3>Auditoría real</h3>
+              <p>Accesos, sesiones y planes quedan registrados. El administrador puede filtrar y exportar el historial.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="comparativa" class="section" aria-labelledby="compare-title">
+          <div class="compare-strip">
+            <div>
+              <p class="eyebrow">HECHO PARA APNEA</p>
+              <h2 id="compare-title">Las otras apps te dicen cuánto nadaste. Esta te dice cómo aguantaste.</h2>
+              <p>
+                Strava y MySwimPro destacan en natación y cardio. Deep Mind Apnea añade lo
+                que importa bajo el agua: retención, oxigenación, contracciones y seguridad.
+              </p>
+            </div>
+            <ul class="compare-list">
+              <li><span>✓</span> Sesiones de apnea con rondas y contracciones</li>
+              <li><span>✓</span> Tablas CO₂/O₂ ajustadas a tu récord</li>
+              <li><span>✓</span> SpO₂ y pulso del sensor en la misma línea temporal</li>
+              <li><span>✓</span> Plan del entrenador visible para el deportista</li>
+              <li><span>✓</span> Auditoría de accesos y acciones</li>
+            </ul>
+          </div>
+        </section>
+
         <section id="demo" class="section demo-section" aria-labelledby="demo-title">
           <div class="demo-panel">
             <div class="demo-copy">
@@ -463,10 +516,9 @@
               <div class="demo-roles" role="group" aria-label="Elegir rol de demostración">
                 <button class="demo-role" type="button" data-email="deportista.deepmind.demo@gmail.com" data-role-name="Deportista">Deportista</button>
                 <button class="demo-role" type="button" data-email="entrenador.deepmind.demo@gmail.com" data-role-name="Entrenador">Entrenador</button>
-                <button class="demo-role" type="button" data-email="entrenador.deepmind.demo@gmail.com" data-role-name="Entrenador">Entrenador</button>
-                <button class="demo-role" type="button" data-email="admin.biomonitor.demo@gmail.com" data-role-name="Administrador">Administrador</button>
                 <button class="demo-role" type="button" data-email="admin.deepmind.demo@gmail.com" data-role-name="Administrador">Administrador</button>
               </div>
+              <p class="demo-note">Un clic y entras directo, sin escribir credenciales. La demo usa datos de ejemplo.</p>
 
               <details class="demo-password">
                 <summary>¿Prefieres escribir las credenciales?</summary>
@@ -481,10 +533,10 @@
                   <path d="m9 12 2 2 4-4" />
                 </svg>
               </span>
-              <h3>Una demo, cinco perspectivas</h3>
+              <h3>Tres perspectivas, una misma app</h3>
               <p>
-                Prueba cómo cambia el panel según el rol: deportista, entrenador, entrenador,
-                administrador o administrador.
+                Prueba cómo cambia el panel según el rol: deportista, entrenador o
+                administrador. La auditoría vive dentro del panel del administrador.
               </p>
               <ul>
                 <li>Datos de ejemplo</li>
@@ -962,6 +1014,20 @@
           </div>
         </dialog>
 
+        <dialog id="session-dialog" class="dash-dialog session-dialog" aria-labelledby="session-dialog-title">
+          <div class="dash-dialog-header">
+            <div>
+              <p class="dash-kicker" id="session-dialog-kicker">ENTRENAMIENTO GUIADO</p>
+              <h2 id="session-dialog-title">Sesión de apnea</h2>
+            </div>
+            <button type="button" class="dash-dialog-close" data-close-dialog aria-label="Cerrar la sesión guiada">Cerrar</button>
+          </div>
+          <div class="dash-dialog-body" id="session-dialog-body">
+            <p class="dash-muted">Preparando la sesión…</p>
+          </div>
+          <div class="dash-dialog-footer" id="session-dialog-footer"></div>
+        </dialog>
+
         <dialog id="device-dialog" class="dash-dialog" aria-labelledby="device-dialog-title">
           <div class="dash-dialog-header">
             <div>
@@ -1022,10 +1088,9 @@
                 <div class="field">
                   <label for="user-edit-role">Rol</label>
                   <select id="user-edit-role" name="role">
-                    <option value="patient">Deportista</option>
-                    <option value="caregiver">Entrenador</option>
-                    <option value="specialist">Entrenador</option>
-                    <option value="administrador">Administrador</option>
+                    <option value="athlete">Deportista</option>
+                    <option value="coach">Entrenador</option>
+                    <option value="admin">Administrador</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
@@ -1149,5 +1214,7 @@
 
       </section>
     </main>
+
+    <script src="/assets/app.js" defer></script>
   </body>
 </html>
