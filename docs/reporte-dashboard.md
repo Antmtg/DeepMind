@@ -4,6 +4,12 @@
 
 Este documento registra la investigación de referencia, las decisiones de diseño y la validación del rediseño del panel de BioMonitor O₂T para los cinco roles del sistema: paciente, cuidador, especialista, administrador y auditor.
 
+> **Estado actual (v1.1.4, Deep Mind Apnea):** los dashboards ya se reimplementaron en `frontend/assets/app.js` con el tema océano/apnea y tres roles reales (`athlete`/`coach`/`admin`, con aliases heredados por compatibilidad). Cada rol tiene su dashboard propio:
+> - **Deportista:** meta semanal con anillo, cronómetro de apnea, tablas CO₂/O₂, plan del entrenador, respiración guiada, feed de actividad, récords reales, calendario de 56 días, zonas FC y carga aguda/crónica.
+> - **Entrenador:** KPIs, plantilla de deportistas, sesiones recientes, formulario de asignación de planes y tarjetas de planes con archivado.
+> - **Administrador:** KPIs de sesiones/planes, gráficas de roles/planes/actividad y sección de auditoría con filtros y exportación CSV.
+> El backend expone `/api/sessions` y `/api/plans` con permisos por rol, resúmenes de sesiones y eventos de auditoría (`APNEA_SESSION_*`, `TRAINING_PLAN_*`). El documento conserva su valor como referencia de diseño y accesibilidad; la temperatura no aparece en la interfaz web.
+
 El objetivo fue convertir el panel en una herramienta comprensible para personas mayores o con poca familiaridad tecnológica, sin perder las capacidades técnicas del proyecto: autenticación, RBAC, dispositivos ESP32, mediciones, auditoría y pruebas de permisos.
 
 La página de bienvenida y el inicio de sesión se conservaron. El rediseño se concentró en el panel posterior al acceso y en la incorporación de vínculos reales entre pacientes y sus cuidadores o especialistas.

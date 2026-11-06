@@ -7,6 +7,8 @@
 **Alcance:** 15 experiencias de bienvenida de apps de salud, monitoreo remoto, dispositivos conectados y bienestar.  
 **Entregable:** diagnóstico de la página actual, benchmark, propuesta de nueva página de bienvenida y backlog priorizado.
 
+> **Estado actual (v1.1.4, Deep Mind Apnea):** esta página de bienvenida ya se implementó en `frontend/index.html` con el tema océano/apnea, tres roles reales (`athlete`, `coach`, `admin`), auto-login de demo con credenciales precargadas, una demo interactiva sin login (cronómetro de retención y respiración 4-4-4-4 con récord en `localStorage`), sección de características y comparativa frente a Strava/MySwimPro/Fathom. El documento conserva su valor como benchmark y referencia de diseño; la implementación final respeta la paleta azules-oscuros/blanco/negro y no muestra temperatura en la interfaz web.
+
 ---
 
 ## 1. Resumen ejecutivo

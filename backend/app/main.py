@@ -44,7 +44,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.1.4",
+    version="1.1.5",
     description="Deep Mind Apnea: seguimiento de apnea, sesiones y planes de entrenamiento.",
     lifespan=lifespan,
 )
@@ -83,7 +83,7 @@ async def validation_exception_handler(
 
 @app.get("/api/health", tags=["Sistema"])
 def health():
-    return {"status": "ok", "service": settings.app_name, "version": "1.1.4"}
+    return {"status": "ok", "service": settings.app_name, "version": "1.1.5"}
 
 
 @app.get("/", include_in_schema=False)
